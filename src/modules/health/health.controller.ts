@@ -22,3 +22,16 @@ export class HealthController {
     return { ok: true, db: 'up', uptime: Math.round(process.uptime()) };
   }
 }
+
+/**
+ * الجذر `/` خارج البادئة `api/v1`: فحوص المستضيف الافتراضية (Render وغيره) تطرق `/`
+ * حين لا يُضبط مسار فحص — فيجد ردًّا خفيفًا بلا قاعدة بدل ٤٠٤ يُفشل النشر.
+ */
+@Public()
+@Controller()
+export class RootController {
+  @Get()
+  root() {
+    return { ok: true, service: 'rvios-api', health: '/api/v1/health' };
+  }
+}

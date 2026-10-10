@@ -1,4 +1,4 @@
-import { ValidationPipe } from '@nestjs/common';
+import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 
@@ -53,7 +53,8 @@ async function bootstrap() {
     next();
   });
 
-  app.setGlobalPrefix('api/v1');
+  // الجذر خارج البادئة لفحوص المستضيف الافتراضية — انظر RootController
+  app.setGlobalPrefix('api/v1', { exclude: [{ path: '/', method: RequestMethod.GET }] });
   app.useGlobalFilters(new DomainErrorFilter());
   app.useGlobalPipes(
     new ValidationPipe({

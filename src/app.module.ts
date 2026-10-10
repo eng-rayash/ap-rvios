@@ -72,7 +72,7 @@ import { MediaController } from './modules/cms/media/media.controller';
 import { MediaService } from './modules/cms/media/media.service';
 import { ContactsController } from './modules/cms/contacts/contacts.controller';
 import { AppConfigController } from './modules/shop-billing/app-config.controller';
-import { HealthController } from './modules/health/health.controller';
+import { HealthController, RootController } from './modules/health/health.controller';
 import { ContactsService } from './modules/cms/contacts/contacts.service';
 import { SettingsController } from './modules/cms/settings/settings.controller';
 import { SettingsService } from './modules/cms/settings/settings.service';
@@ -114,6 +114,7 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     }),
   ],
   controllers: [
+    RootController,
     HealthController,
     AuthController,
     MeetingsController,
