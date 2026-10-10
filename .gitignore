@@ -17,8 +17,8 @@ yarn-debug.log*
 pnpm-debug.log*
 
 # Runtime data & testing
-coverage/
-uploads/
+/coverage/
+/uploads/
 
 # OS & Editor
 .DS_Store
