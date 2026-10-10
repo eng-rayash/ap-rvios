@@ -1,0 +1,22 @@
+# قاعدة تطوير محلية. الإنتاج على خدمة مُدارة لا على هذا.
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: azm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: azm
+      POSTGRES_PASSWORD: azm_dev_only
+      POSTGRES_DB: azm
+    ports:
+      - "5433:5432"   # ٥٤٣٣ تفاديًا للتصادم مع Postgres مثبَّت محليًا
+    volumes:
+      - azm_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U azm -d azm"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  azm_pgdata:

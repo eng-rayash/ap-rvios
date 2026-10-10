@@ -1,0 +1,1405 @@
+// AZM — PostgreSQL Schema
+//
+// مبدأ حاكم: **كل صفّ أعمال يعرف شركته**. العمود `companyId` إلزامي
+// بمفتاح أجنبي على كل جدول أعمال، بخلاف المخطط المحلي حيث هو قابل
+// للإفراغ. هنا يقع الفرض الحقيقي: قيد في قاعدة على جهاز المستخدم ليس
+// حماية، وهذا هو المكان الذي لا يملك المستخدم تعطيله.
+//
+// كل جدول يحمل الحقول التي يحتاجها محرّك المزامنة:
+//   syncId     معرّف مشترك بين الجهاز والخادم — عليه يقع الدمج
+//   createdAt  updatedAt   لكشف التعارض
+//   deletedAt  حذف ناعم: الحذف حدث يُزامَن لا غياب صفّ
+//   version    عدّاد تفاؤلي يمنع الكتابة فوق تعديل أحدث
+//
+// هذا أوّل قصّ من المخطط المحلي (٤٨ جدولًا). الكيانات المنقولة هنا هي
+// ما يثبت العزل والمصادقة طرفًا لطرف؛ والبقية تتبع النمط نفسه.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════════════════════
+// المستأجر والهوية
+// ═══════════════════════════════════════════════════════════
+
+/// الشركة — جذر العزل. كل شيء آخر يُنسب إليها.
+model Organization {
+  id            String @id @default(uuid())
+  syncId        String @unique @map("sync_id")
+  companyCode   String @unique @map("company_code")
+  name          String
+  workspaceSlug String @unique @map("workspace_slug")
+
+  /// عدد خانات المتاجر التي يملكها الحساب في منصة المتاجر (1..5).
+  /// خاصية الحساب لا المتجر: تُمنح بفاتورة `extra_store` مدفوعة.
+  storeSlots Int @default(1) @map("store_slots")
+
+  planType           Int       @default(0) @map("plan_type")
+  subscriptionStatus Int       @default(0) @map("subscription_status")
+  trialEndsAt        DateTime? @map("trial_ends_at")
+
+  country  String?
+  currency String? @default("SAR")
+  industry String?
+  timezone String  @default("Asia/Riyadh")
+  language String  @default("ar")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  memberships        Membership[]
+  meetings           Meeting[]
+  followUps          FollowUp[]
+  clients            Client[]
+  invoices           Invoice[]
+  employees          Employee[]
+  auditLogs          AuditLog[]
+  platformInvoices   PlatformInvoice[]
+  storeSubscriptions StoreSubscription[]
+  shopStores         ShopStore[]
+  workProjects       WorkProject[]
+  workTasks          WorkTask[]
+  notifications      Notification[]
+  apiKeys            ApiKey[]
+  webhooks           Webhook[]
+  webhookDeliveries  WebhookDelivery[]
+
+  cmsCategories        CmsCategory[]
+  cmsPosts             CmsPost[]
+  cmsServices          CmsService[]
+  cmsProjects          CmsProject[]
+  cmsProjectImages     CmsProjectImage[]
+  cmsProjectMetrics    CmsProjectMetric[]
+  cmsProjectCategories CmsProjectCategory[]
+  cmsProjectServices   CmsProjectService[]
+  cmsMedia             CmsMedia[]
+  cmsContacts          CmsContact[]
+  cmsSettings          CmsSetting[]
+
+  @@map("organizations")
+}
+
+/// المستخدم — عالمي لا يخصّ شركة.
+///
+/// لا يحمل `companyId`: المستخدم الواحد قد ينتمي إلى أكثر من شركة،
+/// وربطه بواحدة يمنع ذلك. علاقته بالشركات في [Membership].
+model User {
+  id           String  @id @default(uuid())
+  syncId       String  @unique @map("sync_id")
+  email        String  @unique
+  passwordHash String  @map("password_hash")
+  /// تغيير كلمة المرور يُبطل كل رمز صدر قبله (يُقارَن بـ`iat` في الحارس)
+  passwordChangedAt DateTime? @map("password_changed_at")
+  displayName  String  @map("display_name")
+  phone        String?
+  avatarUrl    String? @map("avatar_url")
+
+  language String @default("ar")
+  timezone String @default("Asia/Riyadh")
+
+  emailVerifiedAt DateTime? @map("email_verified_at")
+  lastLoginAt     DateTime? @map("last_login_at")
+
+  /// عضوية فريق RVIOS الداخلي — خاصية على المستخدم لا مستأجرًا بذاته.
+  /// عمدًا منفصلة عن [Membership]/[UserRole]: الإدارة عبر كل الشركات
+  /// نوع مختلف عن الصلاحية داخل شركة واحدة، ولا يصح خلطهما في نموذج
+  /// واحد — انظر `PlatformGuard` في `tenant.guard.ts`.
+  isPlatformStaff Boolean @default(false) @map("is_platform_staff")
+  /// 0=دعم · 1=فوترة · 2=مدير عام. غير محدَّد لمن ليس فريق منصة.
+  platformRole    Int?    @map("platform_role")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  memberships Membership[]
+  auditLogs   AuditLog[]
+
+  @@map("users")
+}
+
+/// عضوية مستخدم في شركة — هنا يعيش الدور.
+///
+/// الدور خاصية العلاقة لا خاصية المستخدم: الشخص نفسه قد يكون مالكًا
+/// في شركة وموظفًا في أخرى.
+model Membership {
+  id     String @id @default(uuid())
+  syncId String @unique @map("sync_id")
+
+  userId         String       @map("user_id")
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String       @map("organization_id")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  /// 0=owner · 1=superAdmin · 2=admin · 3=executive · 4=hrManager
+  /// 5=financeManager · 6=deptManager · 7=teamLeader · 8=employee · 9=guest
+  role Int @default(8)
+
+  /// صلاحيات دقيقة تتجاوز الدور عند الحاجة
+  permissions Json?
+
+  isActive Boolean   @default(true) @map("is_active")
+  joinedAt DateTime? @map("joined_at")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@unique([userId, organizationId])
+  @@index([organizationId, role])
+  @@map("memberships")
+}
+
+// ═══════════════════════════════════════════════════════════
+// جداول الأعمال — كلها مُقيَّدة بالشركة
+// ═══════════════════════════════════════════════════════════
+
+model Meeting {
+  id     String @id @default(uuid())
+  syncId String @unique @map("sync_id")
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  title           String
+  meetingCategory Int     @default(0) @map("meeting_category")
+  meetingType     Int     @default(0) @map("meeting_type")
+  date            String
+  time            String
+  endTime         String? @map("end_time")
+  location        String?
+  objective       String?
+
+  agenda    Json?
+  decisions Json?
+  outcomes  Json?
+  attendees Json?
+
+  status   Int @default(0)
+  priority Int @default(2)
+
+  createdBy String?   @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  version   Int       @default(1)
+
+  followUps FollowUp[]
+
+  @@index([companyId, updatedAt])
+  @@index([companyId, date])
+  @@map("meetings")
+}
+
+model FollowUp {
+  id     String @id @default(uuid())
+  syncId String @unique @map("sync_id")
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  title        String
+  notes        String?
+  targetDate   String? @map("target_date")
+  followupType Int     @default(0) @map("followup_type")
+
+  /// نوع الكيان المرتبط — قيَمه في EntityLinkType على العميل
+  linkedEntityType  Int?    @map("linked_entity_type")
+  linkedEntityId    String? @map("linked_entity_id")
+  linkedEntityLabel String? @map("linked_entity_label")
+
+  meetingId String?  @map("meeting_id")
+  meeting   Meeting? @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+
+  priority   Int     @default(2)
+  status     Int     @default(0)
+  assignedTo String? @map("assigned_to")
+
+  completedAt DateTime? @map("completed_at")
+  reminderAt  DateTime? @map("reminder_at")
+
+  createdBy String?   @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  version   Int       @default(1)
+
+  @@index([companyId, updatedAt])
+  @@index([companyId, status])
+  @@map("follow_ups")
+}
+
+model Client {
+  id     String @id @default(uuid())
+  syncId String @unique @map("sync_id")
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name String
+
+  /// الاسم بعد التطبيع العربي — عليه يقع بحث حلّال الكيانات.
+  ///
+  /// بدونه لا يطابق «احمد» اسم «أحمد»، ولا «شركه» اسم «شركة».
+  /// البحث بـLIKE على الاسم الخام يفشل على العربية فشلًا صامتًا.
+  nameNormalized String @map("name_normalized")
+
+  phone     String?
+  email     String?
+  address   String?
+  city      String?
+  taxNumber String? @map("tax_number")
+
+  currentBalance Decimal @default(0) @map("current_balance") @db.Decimal(14, 2)
+  isActive       Boolean @default(true) @map("is_active")
+
+  createdBy String?   @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  version   Int       @default(1)
+
+  invoices Invoice[]
+
+  @@index([companyId, updatedAt])
+  @@index([companyId, nameNormalized])
+  @@map("clients")
+}
+
+model Invoice {
+  id     String @id @default(uuid())
+  syncId String @unique @map("sync_id")
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  invoiceNumber String  @map("invoice_number")
+  clientId      String? @map("client_id")
+  client        Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  issueDate String  @map("issue_date")
+  dueDate   String? @map("due_date")
+
+  items Json?
+
+  /// المبالغ Decimal لا Float: الفاصلة العائمة تفقد القروش في الجمع.
+  subtotal        Decimal @default(0) @db.Decimal(14, 2)
+  discountAmount  Decimal @default(0) @map("discount_amount") @db.Decimal(14, 2)
+  taxPercent      Decimal @default(0) @map("tax_percent") @db.Decimal(5, 2)
+  taxAmount       Decimal @default(0) @map("tax_amount") @db.Decimal(14, 2)
+  total           Decimal @default(0) @db.Decimal(14, 2)
+  paidAmount      Decimal @default(0) @map("paid_amount") @db.Decimal(14, 2)
+  remainingAmount Decimal @default(0) @map("remaining_amount") @db.Decimal(14, 2)
+
+  currency String @default("SAR")
+  status   Int    @default(0)
+
+  createdBy String?   @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  version   Int       @default(1)
+
+  @@unique([companyId, invoiceNumber])
+  @@index([companyId, updatedAt])
+  @@index([companyId, status])
+  @@map("invoices")
+}
+
+model Employee {
+  id     String @id @default(uuid())
+  syncId String @unique @map("sync_id")
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  employeeCode   String? @map("employee_code")
+  name           String
+  nameNormalized String  @map("name_normalized")
+
+  phone String?
+  email String?
+
+  departmentName String? @map("department_name")
+  positionName   String? @map("position_name")
+  hireDate       String? @map("hire_date")
+
+  basicSalary Decimal @default(0) @map("basic_salary") @db.Decimal(14, 2)
+  status      Int     @default(0)
+
+  createdBy String?   @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  version   Int       @default(1)
+
+  @@unique([companyId, employeeCode])
+  @@index([companyId, updatedAt])
+  @@index([companyId, nameNormalized])
+  @@map("employees")
+}
+
+// ═══════════════════════════════════════════════════════════
+// إدارة المنصة — عبر الشركات، يراها فريق RVIOS فقط
+// ═══════════════════════════════════════════════════════════
+
+/// فاتورة اشتراك يدوية (شركة تدفع لـRVIOS، لا فاتورة مبيعات الشركة
+/// لعملائها — تلك [Invoice] العادية).
+///
+/// يدوية عمدًا: لا بوابة دفع مربوطة بعد. المسار الحالي تحويل بنكي أو
+/// محفظة، ومراجعة يدوية من فريق المنصة — نفس نمط `billing.js` في
+/// متجر RVIOS الذي حلّت هذه الوحدة محلّه.
+model PlatformInvoice {
+  id     String @id @default(uuid())
+  syncId String @unique @map("sync_id")
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  invoiceNumber String  @map("invoice_number")
+  amount        Decimal @db.Decimal(14, 2)
+  currency      String  @default("SAR")
+
+  periodStart String @map("period_start")
+  periodEnd   String @map("period_end")
+
+  /// 0=بانتظار الدفع · 1=قيد المراجعة · 2=مدفوعة · 3=مرفوضة
+  status Int @default(0)
+
+  /// مرجع إثبات التحويل — رقم عملية أو رابط إيصال، لا تخزين للإيصال نفسه هنا
+  paymentReference String? @map("payment_reference")
+
+  /// منصة المتاجر: 0=اشتراك · 1=بناء متجر · 2=دومين · 3=متجر إضافي · 4=قالب.
+  kind       Int       @default(0)
+  /// 1=بلس · 2=برو — لفواتير الاشتراك فقط
+  plan       Int?
+  /// ما تشتريه الفاتورة غير الاشتراك — معرّف القالب لفواتير القوالب (kind=4)
+  item       String?
+  months     Int?
+  /// معرّف المتجر في منصة المتاجر — نصّ لا مفتاح أجنبي: المتجر يعيش في قاعدته.
+  storeRef   String?   @map("store_ref")
+  /// kuraimi | jaib | paypal
+  method     String?
+  /// مفتاح صورة الإيصال في تخزين منصة المتاجر
+  proofKey   String?   @map("proof_key")
+  voidReason String?   @map("void_reason")
+  paidAt     DateTime? @map("paid_at")
+  dueAt      DateTime? @map("due_at")
+
+  reviewedBy String?   @map("reviewed_by")
+  reviewedAt DateTime? @map("reviewed_at")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  version   Int       @default(1)
+
+  @@unique([companyId, invoiceNumber])
+  @@index([status, createdAt])
+  @@index([companyId, storeRef, kind, status])
+  @@map("platform_invoices")
+}
+
+/// اشتراك متجر واحد في منصة المتاجر.
+///
+/// لكل متجر لا لكل شركة: التاجر الواحد قد يملك حتى خمسة متاجر بباقات
+/// مختلفة. المفتاح (companyId, storeRef) — والمتجر نفسه يعيش في قاعدة
+/// منصة المتاجر، وهنا الباقة والفوترة فقط.
+model StoreSubscription {
+  id     String @id @default(uuid())
+  syncId String @unique @map("sync_id")
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  storeRef  String  @map("store_ref")
+  /// للعرض في لوحة الإدارة فقط — المصدر هو المتجر
+  storeName String? @map("store_name")
+
+  /// 0=مجانية · 1=بلس · 2=برو
+  plan   Int @default(0)
+  /// 0=نشط · 1=مهلة · 2=منتهٍ
+  status Int @default(0)
+
+  currentPeriodEnd DateTime? @map("current_period_end")
+  /// آخر مرحلة تذكير أُرسلت: d7 | d1 | grace | expired
+  notifiedStage    String?   @map("notified_stage")
+  notifiedAt       DateTime? @map("notified_at")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  version   Int       @default(1)
+
+  @@unique([companyId, storeRef])
+  @@index([status, currentPeriodEnd])
+  @@map("store_subscriptions")
+}
+
+/// إعدادات المنصة العالمية — أسعار الباقات وتعليمات التحويل.
+/// عالمية عمدًا (لا companyId): يضبطها فريق المنصة لكل التجار.
+model PlatformSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_settings")
+}
+
+// ═══════════════════════════════════════════════════════════
+// محتوى الموقع الرئيسي — منقولة من باكند rvios-site المستقل
+// ═══════════════════════════════════════════════════════════
+//
+// الموقع الرئيسي (rvios.com) لا يملك نموذج استئجار خاصًا به: هو صفّ
+// [Organization] واحد محجوز مثل أي شركة أخرى — انظر القرار الموثَّق في
+// خطة التنفيذ (§٦). هذا يعني أن `forTenant()` وTenantGuard يعملان هنا
+// بلا أي تعديل، ومحرّرو الموقع أعضاء [Membership] في تلك المنظمة
+// كأي موظف في أي شركة. الاستثناء الوحيد: هذه المنظمة غير قابلة للفوترة
+// (لا تخضع لفحوص الاشتراك)، ويُفرض ذلك في طبقة الفوترة لا هنا.
+//
+// كل نموذج هنا نُقل حرفيًا من مخطط rvios-api الأصلي (10 نماذج)، مع
+// إضافتين إلزاميتين لمطابقة بقية هذا المخطط: `companyId` (العزل)
+// وحقول المزامنة القياسية. الحالات (enum) في المصدر الأصلي حُوِّلت إلى
+// أرقام Int تعليقًا، مطابقةً لبقية النظام — لا نوعا ترقيم مختلفين في
+// نفس المخطط.
+
+/// تصنيف مقالات المدوّنة.
+model CmsCategory {
+  id     String @id @default(uuid())
+  syncId String @unique @map("sync_id")
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name   String
+  nameEn String @map("name_en")
+  slug   String
+
+  posts CmsPost[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  version   Int       @default(1)
+
+  @@unique([companyId, slug])
+  @@map("cms_categories")
+}
+
+model CmsPost {
+  id     String @id @default(uuid())
+  syncId String @unique @map("sync_id")
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  title           String
+  titleEn         String?  @map("title_en")
+  slug            String
+  description     String
+  content         String   @db.Text
+  metaDescription String   @map("meta_description")
+  keywords        String[]
+  tags            String[]
+  heroImageUrl    String?  @map("hero_image_url")
+  heroImageAlt    String?  @map("hero_image_alt")
+  readingTime     Int      @default(5) @map("reading_time")
+
+  // 0=مسودة · 1=منشورة
+  status   Int     @default(0)
+  featured Boolean @default(false)
+  views    Int     @default(0)
+
+  categoryId String      @map("category_id")
+  category   CmsCategory @relation(fields: [categoryId], references: [id])
+
+  publishedAt DateTime? @map("published_at")
+
+  createdBy String?   @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  version   Int       @default(1)
+
+  @@unique([companyId, slug])
+  @@index([companyId, status, publishedAt])
+  @@map("cms_posts")
+}
+
+model CmsService {
+  id     String @id @default(uuid())
+  syncId String @unique @map("sync_id")
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  title         String
+  titleEn       String
+  slug          String
+  description   String   @db.Text
+  descriptionEn String   @map("description_en") @db.Text
+  icon          String?
+  features      String[]
+  order         Int      @default(0)
+
+  // 0=نشطة · 1=غير نشطة
+  status Int @default(0)
+
+  projects CmsProjectService[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  version   Int       @default(1)
+
+  @@unique([companyId, slug])
+  @@map("cms_services")
+}
+
+model CmsProject {
+  id     String @id @default(uuid())
+  syncId String @unique @map("sync_id")
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  slug        String
+  title       String
+  titleEn     String? @map("title_en")
+  /// سطر واحد للبطاقة وللـ meta description
+  summary     String
+  description String  @db.Text
+
+  challenge String? @db.Text
+  solution  String? @db.Text
+  outcome   String? @db.Text
+  /// خطوات الحل: [{ title, desc }] — سرد لا يُستعلَم عنه، فـ Json كافٍ
+  approach  Json    @default("[]")
+
+  client         String?
+  clientLogoUrl  String? @map("client_logo_url")
+  industry       String?
+  year           Int?
+  durationMonths Int?    @map("duration_months")
+  role           String?
+  teamSize       Int?    @map("team_size")
+
+  technologies String[]
+  categoryId   String?             @map("category_id")
+  category     CmsProjectCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  services     CmsProjectService[]
+
+  coverImageUrl String?           @map("cover_image_url")
+  coverImageAlt String?           @map("cover_image_alt")
+  coverBlurHash String?           @map("cover_blur_hash")
+  gallery       CmsProjectImage[]
+
+  testimonialQuote     String? @map("testimonial_quote") @db.Text
+  testimonialAuthor    String? @map("testimonial_author")
+  testimonialRole      String? @map("testimonial_role")
+  testimonialAvatarUrl String? @map("testimonial_avatar_url")
+
+  metrics CmsProjectMetric[]
+
+  liveUrl  String? @map("live_url")
+  repoUrl  String? @map("repo_url")
+  featured Boolean @default(false)
+  order    Int     @default(0)
+
+  // 0=مسودة · 1=منشور · 2=مؤرشف
+  status      Int       @default(0)
+  publishedAt DateTime? @map("published_at")
+  views       Int       @default(0)
+
+  metaTitle       String? @map("meta_title")
+  metaDescription String? @map("meta_description")
+  ogImageUrl      String? @map("og_image_url")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  version   Int       @default(1)
+
+  @@unique([companyId, slug])
+  @@index([companyId, status, featured, order])
+  @@map("cms_projects")
+}
+
+/// معرض صور المشروع. لا نقطة نهاية مستقلة له عمدًا — يُدار كمصفوفة
+/// متداخلة ضمن إنشاء/تعديل [CmsProject] نفسه (حذف وإعادة إنشاء)، لا
+/// CRUD منفصل. `companyId` موجود رغم ذلك لأن `forTenant()` يحتاجه على
+/// أي نموذج يظهر في `TENANT_MODELS` — انظر تعليق tenant-prisma.service.ts.
+model CmsProjectImage {
+  id     String @id @default(uuid())
+  syncId String @unique @map("sync_id")
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  projectId String     @map("project_id")
+  project   CmsProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  url      String
+  alt      String?
+  caption  String?
+  width    Int?
+  height   Int?
+  blurHash String? @map("blur_hash")
+  order    Int     @default(0)
+
+  @@index([projectId, order])
+  @@map("cms_project_images")
+}
+
+/// نفس ملاحظة [CmsProjectImage]: يُدار متداخلًا مع المشروع، لا مستقلًا.
+model CmsProjectMetric {
+  id     String @id @default(uuid())
+  syncId String @unique @map("sync_id")
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  projectId String     @map("project_id")
+  project   CmsProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// «زيادة التحويل»
+  label String
+  /// نص لا رقم: يستوعب «٣٢» و«×٤» و«<١ث» والأرقام العربية
+  value String
+  /// «٪» أو «ثانية»
+  unit  String?
+
+  // 0=صعود · 1=هبوط · 2=محايد
+  direction Int @default(0)
+  order     Int @default(0)
+
+  @@index([projectId, order])
+  @@map("cms_project_metrics")
+}
+
+model CmsProjectCategory {
+  id     String @id @default(uuid())
+  syncId String @unique @map("sync_id")
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name   String
+  nameEn String @map("name_en")
+  slug   String
+  order  Int    @default(0)
+
+  projects CmsProject[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  version   Int       @default(1)
+
+  @@unique([companyId, slug])
+  @@map("cms_project_categories")
+}
+
+/// يربط المشروع بالخدمات التي قدّمناها فيه — يفتح «مشاريع في هذه
+/// الخدمة» على صفحة الخدمة بلا استعلام إضافي.
+model CmsProjectService {
+  id     String @id @default(uuid())
+  syncId String @unique @map("sync_id")
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  projectId String     @map("project_id")
+  project   CmsProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  serviceId String     @map("service_id")
+  service   CmsService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, projectId, serviceId])
+  @@map("cms_project_services")
+}
+
+model CmsMedia {
+  id     String @id @default(uuid())
+  syncId String @unique @map("sync_id")
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  url          String
+  filename     String
+  originalName String @map("original_name")
+  mimeType     String @map("mime_type")
+  size         Int
+
+  // 0=صورة · 1=فيديو · 2=مستند
+  type Int @default(0)
+
+  createdBy String?   @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("cms_media")
+}
+
+model CmsContact {
+  id     String @id @default(uuid())
+  syncId String @unique @map("sync_id")
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name    String
+  // طلبات خدمة منصة المتاجر تصل برقم واتساب وحده — بريد أو هاتف، لا يُلزم أحدهما
+  email   String?
+  phone   String?
+  service String?
+  message String  @db.Text
+
+  // 0=غير مقروءة · 1=مقروءة · 2=تم الرد
+  status Int @default(0)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  version   Int       @default(1)
+
+  @@index([companyId, status, createdAt])
+  @@map("cms_contacts")
+}
+
+model CmsSetting {
+  id     String @id @default(uuid())
+  syncId String @unique @map("sync_id")
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  key   String
+  value String @db.Text
+
+  // 0=نص · 1=JSON · 2=منطقي · 3=رقم
+  type  Int     @default(0)
+  label String?
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([companyId, key])
+  @@map("cms_settings")
+}
+
+// ═══════════════════════════════════════════════════════════
+// التدقيق
+// ═══════════════════════════════════════════════════════════
+
+/// أثر كل إجراء — من فعل ماذا، متى، وبأي سياق.
+///
+/// لا يُحذف ولا يُعدَّل: السجلّ الذي يمكن تعديله لا يصلح للتدقيق.
+model AuditLog {
+  id     String @id @default(uuid())
+  syncId String @unique @map("sync_id")
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  actorId String? @map("actor_id")
+  actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  /// نمط `<كيان>.<فعل>` — نفس النمط المستخدَم على العميل
+  action      String
+  entityType  String? @map("entity_type")
+  entityId    String? @map("entity_id")
+  description String?
+
+  oldValue Json? @map("old_value")
+  newValue Json? @map("new_value")
+
+  ipAddress String? @map("ip_address")
+  platform  String?
+
+  /// 0=info · 1=warning · 2=critical
+  severity Int @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([companyId, createdAt])
+  @@index([companyId, action])
+  @@map("audit_logs")
+}
+
+// ═══════════════════════════════════════════════════════════
+// منصة المتاجر (التجارة الإلكترونية) — منقولة من خادم RVIOS Store
+// ═══════════════════════════════════════════════════════════
+//
+// المتجر كيان داخل الشركة: الشركة هي المستأجر (`companyId`)، وكل جداول
+// المتجر تحمل `companyId` ليعمل `forTenant()` كما هو، و`storeId` لعزل
+// متجر عن متجر داخل الشركة الواحدة (يفرضه `ShopStoreAccess` في الخدمات).
+//
+// انحرافات مقصودة عن اتفاقية بقية المخطط:
+//  - لا `syncId` ولا `version` ولا حذف ناعم: هذه الجداول لا تُزامَن مع
+//    تطبيق الجوال، وحذف المتجر يحذف توابعه بـ`onDelete: Cascade`.
+//  - المبالغ `Int` بوحدة العملة الأساسية (ريال لا هللة) كما في المتجر
+//    الأصلي — لا كسور في السوق المستهدف، والحساب صحيح تمامًا بلا `Decimal`.
+//  - الحالات أرقام: طلب 0=قيد التأكيد 1=مؤكد 2=مكتمل 3=ملغى ·
+//    دفع 0=عند الاستلام 1=بانتظار التحويل 2=إيصال للمراجعة 3=مدفوع ·
+//    متجر 0=نشط 1=موقوف.
+
+model ShopStore {
+  id        String @id @default(uuid())
+  companyId String @map("company_id")
+
+  /// رابط المتجر العام — فريد عبر كل الشركات (يُحلّ بلا جلسة)
+  slug   String @unique
+  name   String
+  sector String @default("other")
+
+  tagline  String @default("")
+  about    String @default("")
+  city     String @default("")
+  address  String @default("")
+  whatsapp String @default("")
+  hours    String @default("")
+
+  logo      String @default("")
+  banner    String @default("")
+  showcase  String @default("")
+  color     String @default("#9E2226")
+  colorDeep String @default("#6E1519") @map("color_deep")
+  /// سكِن وقالب الواجهة — غير الافتراضي حكر على برو (يُفرض في الخدمة)
+  theme     String @default("signature")
+  layout    String @default("signature")
+  /// قالب الواجهة في منصة المتاجر الجديدة (rvios-next) — معرّف من `STORE_TEMPLATES`
+  template       String   @default("essential")
+  /// القوالب المدفوعة التي اشتراها المتجر (دفعة واحدة) — يبدّل بينها بلا دفع جديد
+  ownedTemplates String[] @default([]) @map("owned_templates")
+  /// نطاق خاص للباقات المدفوعة (mystore.com) — بلا بروتوكول، بأحرف صغيرة. يحلّه
+  /// middleware منصة المتاجر إلى المتجر؛ ويُهمَل إن هبطت الباقة إلى المجانية.
+  customDomain   String?  @unique @map("custom_domain")
+
+  /// ISO حرفان — العملة تُشتقّ منها ولا تُخزَّن
+  country String @default("YE")
+
+  verified Boolean @default(false)
+  /// 0=نشط · 1=موقوف
+  status   Int     @default(0)
+
+  deliveryFee      Int    @default(0) @map("delivery_fee")
+  deliveryFreeOver Int    @default(0) @map("delivery_free_over")
+  deliveryNote     String @default("") @map("delivery_note")
+  /// قائمة مفصولة بفواصل: cod,wallet,bank — والـcod لا تُنزع
+  payMethods       String @default("cod") @map("pay_methods")
+  payNote          String @default("") @map("pay_note")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  slugHistory  ShopSlugHistory[]
+  categories   ShopCategory[]
+  products     ShopProduct[]
+  customers    ShopCustomer[]
+  zones        ShopDeliveryZone[]
+  orders       ShopOrder[]
+
+  @@index([companyId])
+  @@map("shop_stores")
+}
+
+/// الروابط القديمة لا تُحذف: تُحوَّل بتحويل دائم. رابط منشور في مئات
+/// محادثات واتساب لا يجوز أن ينكسر ولا أن يُعطى لتاجر آخر.
+model ShopSlugHistory {
+  oldSlug   String   @id @map("old_slug")
+  companyId String   @map("company_id")
+  storeId   String   @map("store_id")
+  changedAt DateTime @default(now()) @map("changed_at")
+
+  store ShopStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@map("shop_slug_history")
+}
+
+model ShopCategory {
+  id        String  @id @default(uuid())
+  companyId String  @map("company_id")
+  storeId   String  @map("store_id")
+  name      String
+  parentId  String? @map("parent_id")
+  sort      Int     @default(0)
+
+  store    ShopStore      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  parent   ShopCategory?  @relation("ShopCategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children ShopCategory[] @relation("ShopCategoryTree")
+  products ShopProduct[]
+
+  @@index([storeId, sort])
+  @@map("shop_categories")
+}
+
+model ShopProduct {
+  id         String  @id @default(uuid())
+  companyId  String  @map("company_id")
+  storeId    String  @map("store_id")
+  categoryId String? @map("category_id")
+
+  name        String
+  summary     String @default("")
+  description String @default("")
+  variant     String @default("")
+  brand       String @default("")
+
+  price    Int
+  oldPrice Int?    @map("old_price")
+  /// مصدر الحقيقة حين hasVariants=false، ومجموع مخزَّن حين true
+  qty      Int     @default(0)
+  lowStock Int     @default(0) @map("low_stock")
+  image    String  @default("")
+  live     Boolean @default(true)
+  sort     Int     @default(0)
+
+  hasVariants Boolean @default(false) @map("has_variants")
+  opt1Name    String  @default("") @map("opt1_name")
+  opt2Name    String  @default("") @map("opt2_name")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  store    ShopStore            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  category ShopCategory?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  images   ShopProductImage[]
+  variants ShopProductVariant[]
+  reviews  ShopReview[]
+
+  @@index([storeId, live])
+  @@index([storeId, brand])
+  @@map("shop_products")
+}
+
+model ShopProductImage {
+  id        String @id @default(uuid())
+  companyId String @map("company_id")
+  storeId   String @map("store_id")
+  productId String @map("product_id")
+  url       String
+  sort      Int    @default(0)
+
+  product ShopProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, sort])
+  @@map("shop_product_images")
+}
+
+/// تقييم منتج من مشترٍ فعلي — مرتبط بسطر طلب مكتمل، تقييم واحد لكل سطر.
+/// الإثبات رقم الطلب المرجعي (كالتتبّع والإيصال): لا حسابات للعملاء.
+model ShopReview {
+  id        String @id @default(uuid())
+  syncId    String @unique @map("sync_id")
+  companyId String @map("company_id")
+  storeId   String @map("store_id")
+  productId String @map("product_id")
+  orderId   String @map("order_id")
+  /// سطر الطلب المُقيَّم — فريد: لا تقييمان للشراء نفسه
+  orderItemId String @unique @map("order_item_id")
+
+  /// ١–٥
+  rating Int
+  name   String
+  body   String @db.Text
+  /// ردّ التاجر — يظهر تحت التقييم
+  reply  String @default("") @db.Text
+  /// 0=قيد المراجعة · 1=منشور · 2=مخفي
+  status Int    @default(1)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  product ShopProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, status])
+  @@index([productId, status])
+  @@map("shop_reviews")
+}
+
+model ShopProductVariant {
+  id        String  @id @default(uuid())
+  companyId String  @map("company_id")
+  storeId   String  @map("store_id")
+  productId String  @map("product_id")
+  v1        String  @default("")
+  v2        String  @default("")
+  /// null = يرث سعر المنتج
+  price     Int?
+  qty       Int     @default(0)
+  sku       String  @default("")
+  image     String  @default("")
+  live      Boolean @default(true)
+  sort      Int     @default(0)
+
+  product ShopProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, v1, v2])
+  @@index([productId, sort])
+  @@map("shop_product_variants")
+}
+
+/// عميل المتجر — هوية داخل المتجر الواحد. لا عدّادات مخزَّنة: عدد الطلبات
+/// والمشتريات تُحسب بالاستعلام لأن العدّاد المخزَّن ينحرف بصمت.
+model ShopCustomer {
+  id        String   @id @default(uuid())
+  companyId String   @map("company_id")
+  storeId   String   @map("store_id")
+  phone     String
+  name      String   @default("")
+  address   String   @default("")
+  firstAt   DateTime @default(now()) @map("first_at")
+  lastAt    DateTime @default(now()) @map("last_at")
+
+  store  ShopStore   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  orders ShopOrder[]
+
+  @@unique([storeId, phone])
+  @@index([storeId, lastAt])
+  @@map("shop_customers")
+}
+
+model ShopDeliveryZone {
+  id        String @id @default(uuid())
+  companyId String @map("company_id")
+  storeId   String @map("store_id")
+  name      String
+  fee       Int    @default(0)
+  freeOver  Int    @default(0) @map("free_over")
+  sort      Int    @default(0)
+
+  store ShopStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, sort])
+  @@map("shop_delivery_zones")
+}
+
+model ShopOrder {
+  id         String  @id @default(uuid())
+  companyId  String  @map("company_id")
+  storeId    String  @map("store_id")
+  /// رقم مرجعي يقرؤه العميل (RS-XXXXX) — فريد عالميًا
+  ref        String  @unique
+  customerId String? @map("customer_id")
+  zoneId     String? @map("zone_id")
+  /// اسم المنطقة نصًّا: حذفها لاحقًا لا يمحو ما دفعه العميل
+  zoneName   String  @default("") @map("zone_name")
+
+  payMethod String @default("cod") @map("pay_method")
+  /// 0=عند الاستلام · 1=بانتظار التحويل · 2=إيصال للمراجعة · 3=مدفوع
+  payStatus Int    @default(0) @map("pay_status")
+  payProof  String @default("") @map("pay_proof")
+
+  custName    String @default("") @map("cust_name")
+  custPhone   String @default("") @map("cust_phone")
+  custAddress String @default("") @map("cust_address")
+  note        String @default("")
+
+  subtotal    Int
+  deliveryFee Int @default(0) @map("delivery_fee")
+  total       Int
+  /// 0=قيد التأكيد · 1=مؤكد · 2=مكتمل · 3=ملغى
+  status      Int @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  store    ShopStore       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer ShopCustomer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  items    ShopOrderItem[]
+
+  @@index([storeId, status, createdAt])
+  @@map("shop_orders")
+}
+
+model ShopOrderItem {
+  id        String  @id @default(uuid())
+  companyId String  @map("company_id")
+  storeId   String  @map("store_id")
+  orderId   String  @map("order_id")
+  productId String? @map("product_id")
+  variantId String? @map("variant_id")
+  name      String
+  /// التسمية وقت الطلب — تبقى للسجل ولو حُذف الخيار
+  variant   String  @default("")
+  price     Int
+  qty       Int
+
+  order ShopOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([storeId, productId])
+  @@map("shop_order_items")
+}
+
+/// زوّار المتجر الفريدون يوميًا — تجميعي (متجر × يوم).
+model ShopVisit {
+  companyId String @map("company_id")
+  storeId   String @map("store_id")
+  /// YYYY-MM-DD (UTC)
+  day       String
+  count     Int    @default(0)
+
+  @@id([storeId, day])
+  @@index([companyId])
+  @@map("shop_visits")
+}
+
+/// بصمة زائر يومية لعدّ الفريدين بدل كل تحديث للصفحة. تجزئة فقط (لا IP خام)
+/// وتُحذف بعد يومين — فلا تتبّع أفراد ولا احتفاظ ببيانات تعريفية.
+model ShopVisitMark {
+  mark String @id
+  day  String
+
+  @@index([day])
+  @@map("shop_visit_marks")
+}
+
+// ─────────────────────────────────────────────────────────────
+// وحدة العمل: مشاريع ومهام وإشعارات
+//
+// كل جدول يحمل companyId (ويُدرَج في TENANT_MODELS). المستخدمون يُشار
+// إليهم بمعرّفات نصية بلا مفتاح أجنبي: العضوية تُتحقَّق في الخدمة عند
+// الكتابة، وأسماؤهم تُضاف عند القراءة من جدول الأعضاء.
+// ─────────────────────────────────────────────────────────────
+
+model WorkProject {
+  id String @id @default(uuid())
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  /// رمز قصير فريد داخل الشركة (APP, WEB …) — يسبق أرقام المهام.
+  key         String
+  name        String
+  description String @default("")
+  /// 0=على المسار · 1=في خطر · 2=متأخر · 3=مكتمل
+  status      Int    @default(0)
+  color       String @default("var(--chart-1)")
+  category    String @default("")
+
+  leadId    String?   @map("lead_id")
+  startDate DateTime? @map("start_date")
+  dueDate   DateTime? @map("due_date")
+  budget    Int       @default(0)
+  spent     Int       @default(0)
+  /// آخر رقم مهمة أُصدر داخل المشروع — يُزاد ذرّيًا.
+  taskSeq   Int       @default(0) @map("task_seq")
+
+  createdBy String?  @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  members    WorkProjectMember[]
+  milestones WorkMilestone[]
+  tasks      WorkTask[]
+
+  @@unique([companyId, key])
+  @@index([companyId, status])
+  @@map("work_projects")
+}
+
+model WorkProjectMember {
+  id        String @id @default(uuid())
+  companyId String @map("company_id")
+
+  projectId String      @map("project_id")
+  project   WorkProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String      @map("user_id")
+
+  @@unique([projectId, userId])
+  @@index([companyId, userId])
+  @@map("work_project_members")
+}
+
+model WorkMilestone {
+  id        String @id @default(uuid())
+  companyId String @map("company_id")
+
+  projectId String      @map("project_id")
+  project   WorkProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  title String
+  date  DateTime
+  done  Boolean  @default(false)
+
+  @@index([projectId])
+  @@map("work_milestones")
+}
+
+model WorkTask {
+  id String @id @default(uuid())
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  projectId String      @map("project_id")
+  project   WorkProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// رقم داخل المشروع: APP-12
+  number      Int
+  title       String
+  description String @default("")
+  /// 0=متراكم · 1=للتنفيذ · 2=قيد التنفيذ · 3=قيد المراجعة · 4=مكتمل
+  status      Int    @default(1)
+  /// 0=منخفضة · 1=متوسطة · 2=عالية · 3=عاجلة
+  priority    Int    @default(1)
+
+  assigneeId String?  @map("assignee_id")
+  labels     String[] @default([])
+  startDate  DateTime? @map("start_date")
+  dueDate    DateTime? @map("due_date")
+  points     Int      @default(0)
+  /// ترتيب البطاقة داخل عمودها في لوحة كانبان.
+  position   Int      @default(0)
+
+  createdBy   String?   @map("created_by")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  comments WorkTaskComment[]
+
+  @@unique([projectId, number])
+  @@index([companyId, assigneeId, status])
+  @@index([projectId, status, position])
+  @@map("work_tasks")
+}
+
+model WorkTaskComment {
+  id        String @id @default(uuid())
+  companyId String @map("company_id")
+
+  taskId String   @map("task_id")
+  task   WorkTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  authorId  String   @map("author_id")
+  body      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([taskId, createdAt])
+  @@map("work_task_comments")
+}
+
+/// إشعار موجَّه لمستخدم واحد داخل شركة.
+model Notification {
+  id String @id @default(uuid())
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  userId String @map("user_id")
+  /// assign | comment | mention | milestone | billing | system
+  kind   String
+  title  String
+  body   String @default("")
+  link   String?
+  actorId String? @map("actor_id")
+
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([companyId, userId, readAt, createdAt])
+  @@map("notifications")
+}
+
+/// مفتاح وصول برمجي (API key) لتكامل خارجي مع بيانات الشركة.
+///
+/// يعمل المفتاح بصلاحية `role` نفسها التي يفرضها `@RequireRole` على كل
+/// مسار — لا نظام صلاحيات مواز. عند كل استخدام تُعاد مقارنته بدور صاحبه
+/// الحالي في العضوية (`Math.max` — الأقل صلاحية يفوز، رقميًا الأكبر)،
+/// فإن أُنزلت رتبته أو أُزيل من الشركة يضعف المفتاح تلقائيًا أو يتوقف.
+model ApiKey {
+  id     String @id @default(uuid())
+  syncId String @unique @map("sync_id")
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name String
+
+  /// الجزء المعروض للتاجر للتعرّف على المفتاح لاحقًا — لا يكفي لانتحاله.
+  prefix String
+
+  /// بصمة SHA-256 للسرّ الكامل. السرّ نفسه لا يُخزَّن ولا يُعاد أبدًا
+  /// بعد لحظة الإنشاء.
+  keyHash String @unique @map("key_hash")
+
+  /// الدور الذي يعمل به المفتاح — نفس ترقيم `UserRole` في الكود.
+  role Int
+
+  createdBy  String    @map("created_by")
+  lastUsedAt DateTime? @map("last_used_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  revokedAt  DateTime? @map("revoked_at")
+
+  @@index([companyId, revokedAt])
+  @@map("api_keys")
+}
+
+/// نقطة نهاية خطاف ويب — عنوان خارجي يستقبل أحداث الشركة (طلب جديد…).
+///
+/// السرّ مخزَّن نصًّا عمدًا (بعكس مفاتيح API): نحتاجه نحن لتوقيع كل إرسال
+/// بـHMAC، والمستقبِل يحتاجه للتحقق. تسرّبه يسمح بتزوير إشعار لا بقراءة
+/// بيانات، ويُدوَّر من اللوحة.
+model Webhook {
+  id String @id @default(uuid())
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  url    String
+  /// أسماء الأحداث المشترَك فيها: order.created …
+  events String[]
+  secret String
+  isActive Boolean @default(true) @map("is_active")
+
+  /// إخفاقات متتالية — تُصفَّر عند أول نجاح، وتُعطِّل النقطة عند الحد.
+  failureCount   Int       @default(0) @map("failure_count")
+  lastDeliveryAt DateTime? @map("last_delivery_at")
+  lastStatus     Int?      @map("last_status")
+
+  createdBy String   @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  deliveries WebhookDelivery[]
+
+  @@index([companyId, isActive])
+  @@map("webhooks")
+}
+
+/// محاولة إرسال حدث واحد إلى نقطة واحدة — السجل الذي يراه التاجر ويعيد منه.
+model WebhookDelivery {
+  id String @id @default(uuid())
+
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  webhookId String  @map("webhook_id")
+  webhook   Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  event   String
+  payload Json
+
+  /// 0=بانتظار الإرسال · 1=نجح · 2=فشل نهائيًا
+  status       Int       @default(0)
+  attempts     Int       @default(0)
+  responseCode Int?      @map("response_code")
+  error        String?
+  nextAttemptAt DateTime? @map("next_attempt_at")
+  deliveredAt  DateTime? @map("delivered_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([status, nextAttemptAt])
+  @@index([webhookId, createdAt])
+  @@map("webhook_deliveries")
+}
