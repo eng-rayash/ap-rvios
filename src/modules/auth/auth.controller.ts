@@ -61,6 +61,15 @@ export class AuthController {
     }
   }
 
+  /** دخول العرض التجريبي (للقراءة فقط) — ٣٠ مرة في الساعة لكل عنوان */
+  @Public()
+  @Post('demo')
+  @HttpCode(200)
+  demo(@Ip() ip: string) {
+    this.limit.check(`demo:${ip}`, limitOf('AUTH_DEMO_LIMIT', 30), 60 * 60_000);
+    return this.auth.demo();
+  }
+
   /**
    * من أنا في هذه الشركة.
    *

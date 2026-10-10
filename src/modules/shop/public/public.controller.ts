@@ -120,6 +120,7 @@ export class ShopPublicController {
     @Ip() ip: string,
   ) {
     const { store } = await this.publicShop.live(slug);
+    await this.publicShop.assertNotDemo(store);
     // ١٠ طلبات كل ١٠ دقائق من عنوان واحد لكل متجر — يكفي عميلًا حقيقيًا ويقطع
     // سيلًا آليًا. قابل للضبط للاختبارات ولمتاجر خلف بوّابة مشتركة.
     this.limit.check(`order:${ip}:${store.id}`, Number(process.env.SHOP_ORDER_LIMIT) || 10, 10 * 60_000);
@@ -158,6 +159,7 @@ export class ShopPublicController {
     @UploadedFile() file?: UploadedBinary,
   ) {
     const { store } = await this.publicShop.live(slug);
+    await this.publicShop.assertNotDemo(store);
     this.limit.check(`proof:${ip}:${store.id}`, 10, 30 * 60_000);
     if (!file) throw new BadRequestException('أرفق صورة الإيصال (الحقل file)');
     await this.orders.proofTarget(store, ref);
@@ -183,6 +185,7 @@ export class ShopPublicController {
     @Ip() ip: string,
   ) {
     const { store } = await this.publicShop.live(slug);
+    await this.publicShop.assertNotDemo(store);
     this.limit.check(`review:${ip}:${store.id}`, 20, 60 * 60_000);
     return this.reviews.submit(store, ref, dto);
   }

@@ -2,6 +2,7 @@ import {
   ConflictException,
   Injectable,
   UnauthorizedException,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -10,6 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { TenantPrismaService } from '../../common/prisma/tenant-prisma.service';
 import { UserRole } from '../../common/tenant/tenant-context';
 import { normalizeArabic } from '../../common/text/normalize-arabic';
+import { DEMO_EMAIL, DEMO_SESSION, DEMO_WORKSPACE_SLUG } from '../demo/demo.constant';
 
 /**
  * AZM — المصادقة
@@ -173,6 +175,33 @@ export class AuthService {
         ...m.organization,
         role: m.role,
       })),
+    };
+  }
+
+  /**
+   * دخول العرض التجريبي — بلا كلمة مرور، لشركة العرض وحدها، بجلسة قصيرة. الشركة
+   * للقراءة فقط (الحارس يرفض الكتابة)، فالدخول المفتوح لا يعرّض شيئًا.
+   */
+  async demo() {
+    const membership = await this.prisma.membership.findFirst({
+      where: {
+        user: { email: DEMO_EMAIL },
+        organization: { workspaceSlug: DEMO_WORKSPACE_SLUG },
+        isActive: true,
+        deletedAt: null,
+      },
+      include: {
+        user: true,
+        organization: { select: { id: true, name: true, companyCode: true, workspaceSlug: true, trialEndsAt: true } },
+      },
+    });
+    if (!membership) throw new NotFoundException('العرض التجريبي غير مهيّأ بعد');
+    const company = membership.organization;
+    return {
+      accessToken: await this.jwt.signAsync({ sub: membership.userId, companyId: company.id }, { expiresIn: DEMO_SESSION }),
+      user: this.publicUser(membership.user),
+      company,
+      companies: [{ ...company, role: membership.role }],
     };
   }
 

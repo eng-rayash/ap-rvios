@@ -55,7 +55,12 @@ export class DomainErrorFilter implements ExceptionFilter {
     }
 
     if (exception instanceof HttpException) {
-      res.status(exception.getStatus()).json(exception.getResponse());
+      // `new HttpException('نص', …)` يعيد نصًّا خامًا — نلفّه بالشكل الموحّد
+      // `{ statusCode, message }` الذي تقرؤه الواجهات، وإلا ضاعت الرسالة
+      const body = exception.getResponse();
+      res.status(exception.getStatus()).json(
+        typeof body === 'string' ? { statusCode: exception.getStatus(), message: body } : body,
+      );
       return;
     }
 

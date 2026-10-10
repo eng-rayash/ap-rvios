@@ -58,6 +58,7 @@ docker build -t azm-api .
 | `NOTIFY_CHANNELS` | | `console` حتى يكتمل إعداد Meta، ثم `whatsapp,console` |
 | `META_TOKEN` · `WA_PHONE_ID` · `META_APP_SECRET` · `WA_API_VERSION` | | واتساب — `docs/SETUP-META.md` |
 | `BILLING_WORKER` · `WEBHOOK_WORKER` | | اتركهما. على أكثر من نسخة: `0` في كل النسخ عدا واحدة |
+| `AUTH_LOGIN_ACCOUNT_LIMIT` · `AUTH_LOGIN_IP_LIMIT` · `AUTH_REGISTER_LIMIT` | | حدود الدخول: ١٠ إخفاقات للحساب و٣٠ للعنوان كل ١٥ دقيقة، و١٠ تسجيلات للعنوان في الساعة (الافتراضي) |
 
 > واجهة المتجر العامة (`/api/v1/shop/storefront/*`) مفتوحة لكل الأصول عمدًا — النطاقات
 > الخاصة للتجّار لا تُحصى، ومساراتها بلا جلسة. كل ما سواها محصور في `CORS_ORIGINS`.
@@ -76,6 +77,7 @@ docker build -t azm-api .
 | `NEXT_PUBLIC_STOREFRONT_CNAME` | `rvios.store` — ما يوجّه إليه التاجر DNS نطاقه الخاص (انظر §٥) |
 | `NEXT_PUBLIC_RVIOS_URL` | `https://www.rvios.com` |
 | `NEXT_PUBLIC_STOREOS_URL` | `https://store.rvios.com` |
+| `NEXT_PUBLIC_SITE_URL` | `https://azm.rvios.com` — الرابط الأساسي للصفحة الترحيبية وخريطة الموقع |
 
 البناء **يفشل عمدًا** إن غاب `NEXT_PUBLIC_API_URL` أو أشار إلى localhost — قيم
 `NEXT_PUBLIC_*` تُخبز وقت البناء، فأعد البناء بعد أي تغيير فيها.
@@ -133,6 +135,7 @@ ALIAS  @    →  rvios.store        (إن دعمه مسجّله)
 | `NEXT_PUBLIC_STOREOS_URL` | `https://store.rvios.com` |
 | `NEXT_PUBLIC_AZMSMART_URL` | `https://azm.rvios.com` |
 | `RESEND_API_KEY` · `CONTACT_TO_EMAIL` | اختياري — نسخة بريدية من رسائل التواصل |
+| `NEXT_PUBLIC_GA_IDS` | اختياري — Google Analytics: افتراضيًا `G-134319LQ0W,GT-PLFD96VX` (في الإنتاج وحده). فارغ يعطّله |
 
 ### رقم التواصل حسب دولة الزائر (الموقع الرئيسي ومنصة المتاجر)
 
@@ -163,7 +166,13 @@ ALIAS  @    →  rvios.store        (إن دعمه مسجّله)
    ```bash
    npm run cms:seed-site:prod -- you@rvios.com
    ```
-4. **الأسعار والدفع** — AzmSmart ← المنصة ← الإعدادات: العملة، سعر الاحترافية
+4. **العرض التجريبي** (صفحة «جرّب العرض» في AzmSmart — للقراءة فقط):
+   ```bash
+   npm run demo:seed:prod
+   ```
+   يبني «مؤسسة الواحة للتجارة» ببيانات في كل الوحدات. التواريخ نسبية ليوم التشغيل،
+   فأعد تشغيله كل بضعة أشهر لتبقى الرسوم حديثة (يحذف العرض القديم ويبنيه من جديد).
+5. **الأسعار والدفع** — AzmSmart ← المنصة ← الإعدادات: العملة، سعر الاحترافية
    والأعمال الشهري، الأشهر المجانية في السنوي، أسعار القوالب، وأرقام حسابات الدفع
    (الكريمي · جيب · PayPal) التي تظهر للتاجر عند الدفع.
 
@@ -183,3 +192,13 @@ ALIAS  @    →  rvios.store        (إن دعمه مسجّله)
 - `JWT_SECRET` جديد للإنتاج (تغييره لاحقًا يُخرج كل المستخدمين).
 - لا `.env` في أي مستودع — `.env.example` وحده.
 - نسخ احتياطي يومي للقاعدة من لوحة المزوّد.
+
+**ما في الكود الآن (لا يحتاج إعدادًا):**
+- ترويسات أمان على الباكند والمواقع الثلاثة: CSP يحصر اتصالات الواجهات بالباكند وحده، ومنع
+  التضمين في إطارات الغير، و`nosniff`، وHSTS في الإنتاج. بعد النشر افحص الكونسول في كل
+  موقع — أي مورد خارجي جديد (خطوط، تحليلات) يُضاف إلى `securityHeaders` في `next.config.ts`.
+- حدّ لمحاولات الدخول الخاطئة والتسجيل (أعلاه)، وتغيير كلمة المرور يُبطل كل الجلسات السابقة.
+
+**SEO:** كل متجر يُرسَم على الخادم ببياناته (العنوان، الوصف، صورة المشاركة، Product/Store
+في schema.org)، ولكل نطاق `sitemap.xml` و`robots.txt`. بعد الإطلاق: أضف `rvios.store`
+(نطاقًا كاملًا) و`rvios.com` و`azm.rvios.com` إلى Google Search Console وأرسل خرائطها.

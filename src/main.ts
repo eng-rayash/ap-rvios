@@ -38,6 +38,21 @@ async function bootstrap() {
     cb(null, { origin: !origin ? false : open || allowed(origin) ? origin : false });
   });
 
+  // ترويسات أمان لكل رد. الخادم JSON وصور فقط: لا شيء فيه يُعرض صفحةً أو
+  // يُضمَّن في إطار، فالسياسة الأضيق ممكنة. `cross-origin` لأن الواجهات وصور
+  // الملفات تُطلب من أصول أخرى أصلًا.
+  app.disable('x-powered-by');
+  const prod = process.env.NODE_ENV === 'production';
+  app.use((_req: unknown, res: { setHeader(k: string, v: string): void }, next: () => void) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    if (prod) res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
+    next();
+  });
+
   app.setGlobalPrefix('api/v1');
   app.useGlobalFilters(new DomainErrorFilter());
   app.useGlobalPipes(

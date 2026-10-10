@@ -19,7 +19,9 @@
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "platform:grant": "ts-node scripts/grant-platform-staff.ts",
-    "cms:seed-site": "ts-node scripts/seed-site-organization.ts"
+    "cms:seed-site": "ts-node scripts/seed-site-organization.ts",
+    "demo:seed": "ts-node scripts/seed-demo.ts",
+    "demo:seed:prod": "node dist/scripts/seed-demo.js"
   },
   "keywords": [],
   "author": "",

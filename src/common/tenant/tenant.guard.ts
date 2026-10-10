@@ -8,6 +8,7 @@ import {
   createParamDecorator,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { DEMO_READONLY, DEMO_WORKSPACE_SLUG } from '../../modules/demo/demo.constant';
 
 import { TenantPrismaService } from '../prisma/tenant-prisma.service';
 import { hashApiKey } from '../security/api-key.util';
@@ -16,6 +17,8 @@ import { TenantContext, PlatformContext, UserRole, hasRole } from './tenant-cont
 /** المسارات المعلَّمة بهذا لا تحتاج مصادقة — التسجيل والدخول. */
 export const PUBLIC_KEY = 'azm:public';
 export const Public = () => SetMetadata(PUBLIC_KEY, true);
+
+const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 const STALE_SESSION = 'انتهت الجلسة بعد تغيير كلمة المرور — سجّل دخولك من جديد';
 
@@ -148,6 +151,7 @@ export class TenantGuard implements CanActivate {
       select: {
         id: true, role: true, organizationId: true, userId: true,
         user: { select: { passwordChangedAt: true } },
+        organization: { select: { workspaceSlug: true } },
       },
     });
 
@@ -160,6 +164,11 @@ export class TenantGuard implements CanActivate {
     // الاستعلام نفسه يحمل وقت تغيير كلمة المرور: رمز سُرق قبل تغييرها يسقط فورًا
     if (issuedBeforePasswordChange(payload.iat, membership.user.passwordChangedAt)) {
       throw new UnauthorizedException(STALE_SESSION);
+    }
+
+    // شركة العرض للقراءة فقط: لا إضافة ولا تعديل ولا حذف ولا رفع، أيًّا كان الدور
+    if (membership.organization.workspaceSlug === DEMO_WORKSPACE_SLUG && !READ_METHODS.has(req.method)) {
+      throw new ForbiddenException(DEMO_READONLY);
     }
 
     if (minRole !== undefined && !hasRole(membership.role, minRole)) {

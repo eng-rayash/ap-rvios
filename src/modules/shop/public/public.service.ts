@@ -1,5 +1,5 @@
 import { PLAN_BY_CODE, PUBLIC_PLAN } from '../../shop-billing/shop-billing.constants';
-import { GoneException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, GoneException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, ShopProduct, ShopStore } from '@prisma/client';
 
 import { TenantPrismaService } from '../../../common/prisma/tenant-prisma.service';
@@ -8,8 +8,9 @@ import { normalizeDomain } from '../domain.util';
 import { ShopStoreAccessService } from '../shop-store-access.service';
 import { variantLabel, variantPrice } from '../catalog/catalog.service';
 import { waAsk } from '../orders/order-message';
-import { PAY_METHODS, StoreStatus, limitsOf, symbolOf } from '../shop.constants';
+import { PAY_METHODS, StoreStatus, countryOf, limitsOf, symbolOf } from '../shop.constants';
 import { storeView } from '../stores/stores.service';
+import { DEMO_WORKSPACE_SLUG } from '../../demo/demo.constant';
 
 /** نتيجة حلّ رابط: متجر حيّ، أو تحويل دائم إلى رابطه الجديد. */
 export type Resolved =
@@ -90,7 +91,8 @@ export class ShopPublicService {
       theme: v.theme, layout: v.layout, plan: v.plan, verified: v.verified,
       // منصة المتاجر الجديدة: القالب الفعّال، والباقة برموزها (free|pro|biz)
       template: v.template, planTier: PUBLIC_PLAN[PLAN_BY_CODE[v.plan] ?? 0], customDomain: v.customDomain,
-      country: v.country, currency: v.currency,
+      // `currency` رمز للعرض (ر.ي)، و`currencyCode` رمز ISO 4217 (YER) لبيانات البحث المنظّمة
+      country: v.country, currency: v.currency, currencyCode: countryOf(v.country).currency,
       deliveryFee: v.deliveryFee, deliveryFreeOver: v.deliveryFreeOver,
       deliveryNote: v.deliveryNote, payMethods: v.payMethods, payNote: v.payNote,
       url: `/${v.slug}`,
@@ -390,23 +392,49 @@ export class ShopPublicService {
     };
   }
 
-  /** روابط كل المتاجر النشطة — لخريطة الموقع. */
+  /** معرّف شركة العرض التجريبي (أو `null` إن لم تُهيّأ) — يُحفظ دقيقة. */
+  private demo: { id: string | null; until: number } = { id: null, until: 0 };
+  async demoCompanyId(): Promise<string | null> {
+    if (this.demo.until > Date.now()) return this.demo.id;
+    const org = await this.prisma.organization.findUnique({ where: { workspaceSlug: DEMO_WORKSPACE_SLUG }, select: { id: true } });
+    this.demo = { id: org?.id ?? null, until: Date.now() + 60_000 };
+    return this.demo.id;
+  }
+
+  /** متجر العرض يُتصفَّح ولا يُكتب فيه: لا طلبات ولا إيصالات ولا تقييمات من الزوّار. */
+  async assertNotDemo(store: ShopStore): Promise<void> {
+    if (store.companyId === (await this.demoCompanyId())) {
+      throw new ForbiddenException('هذا متجر عرض تجريبي — الطلب فيه للمشاهدة فقط');
+    }
+  }
+
+  /** روابط كل المتاجر النشطة — لخريطة الموقع (عدا متجر العرض). */
   async sitemap() {
+    const demo = await this.demoCompanyId();
     const rows = await this.prisma.shopStore.findMany({
-      where: { status: StoreStatus.Active },
-      select: { slug: true, updatedAt: true },
+      where: { status: StoreStatus.Active, ...(demo ? { companyId: { not: demo } } : {}) },
+      select: { id: true, companyId: true, slug: true, updatedAt: true, customDomain: true },
       orderBy: { createdAt: 'asc' },
       take: 50_000,
     });
-    return rows.map((s) => ({ slug: s.slug, updatedAt: s.updatedAt }));
+    // النطاق الخاص فعّال في الباقات المدفوعة وحدها — كما في واجهة المتجر. الباقة
+    // تُحسب لمن له نطاق فقط (قلّة)، لا لكل متجر
+    return Promise.all(
+      rows.map(async (s) => ({
+        slug: s.slug,
+        updatedAt: s.updatedAt,
+        customDomain: s.customDomain && (await this.access.planOf(s.companyId, s.id)) !== 'basic' ? s.customDomain : null,
+      })),
+    );
   }
 
   /** متاجر حقيقية للعرض في الصفحة الرئيسية (§٣.١). */
   async showcase(limit = 6, samples = 0) {
     const take = Math.min(12, Math.max(1, limit));
     const per = Math.min(6, Math.max(0, samples));
+    const demo = await this.demoCompanyId();
     const rows = await this.prisma.shopStore.findMany({
-      where: { status: StoreStatus.Active },
+      where: { status: StoreStatus.Active, ...(demo ? { companyId: { not: demo } } : {}) },
       include: { _count: { select: { products: { where: { live: true } } } } },
       take: 60,
     });
