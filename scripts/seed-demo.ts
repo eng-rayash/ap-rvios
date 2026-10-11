@@ -19,7 +19,8 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { normalizeArabic } from '../src/common/text/normalize-arabic';
 import { DEMO_EMAIL, DEMO_WORKSPACE_SLUG } from '../src/modules/demo/demo.constant';
 
-const prisma = new PrismaClient();
+// يُنشأ عند التشغيل (سطر أوامر أو من الخادم عند الإقلاع) ويُغلق بعده
+let prisma: PrismaClient;
 const DAY = 86_400_000;
 const now = Date.now();
 const ago = (days: number, hour = 10, min = 0) => {
@@ -443,9 +444,36 @@ async function main() {
   console.log('الدخول: POST /api/v1/auth/demo (للقراءة فقط)');
 }
 
-main()
-  .catch((err) => {
+/** يبني شركة العرض من الصفر (يحذف القديمة أولًا). */
+export async function seedDemo(): Promise<void> {
+  prisma = new PrismaClient();
+  try {
+    await main();
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** العمر الذي يُعاد بعده بناء العرض تلقائيًا — التواريخ نسبية، فالقديم تبهت رسومه */
+const STALE_DAYS = 60;
+
+/**
+ * هل يحتاج العرض بناءً؟ غائب، أو أقدم من ٦٠ يومًا. يستدعيه الخادم عند الإقلاع
+ * (`DEMO_AUTOSEED=0` يعطّله) فلا يحتاج النشر خطوة يدوية — ولا Shell في خطة Render المجانية.
+ */
+export async function demoNeedsSeed(): Promise<boolean> {
+  const db = new PrismaClient();
+  try {
+    const org = await db.organization.findUnique({ where: { workspaceSlug: DEMO_WORKSPACE_SLUG }, select: { createdAt: true } });
+    return !org || org.createdAt.getTime() < Date.now() - STALE_DAYS * DAY;
+  } finally {
+    await db.$disconnect();
+  }
+}
+
+if (require.main === module) {
+  seedDemo().catch((err) => {
     console.error(err instanceof Error ? err.message : err);
     process.exit(1);
-  })
-  .finally(() => prisma.$disconnect());
+  });
+}

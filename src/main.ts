@@ -67,6 +67,22 @@ async function bootstrap() {
 
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port, '0.0.0.0');
+
+  // العرض التجريبي (صفحة «جرّب العرض» في AzmSmart): يُبنى تلقائيًا إن غاب أو قدُم، في
+  // الخلفية بعد أن يبدأ الخادم بالرد — فلا خطوة يدوية بعد النشر. الاختبارات تتولّاه بنفسها.
+  if (process.env.DEMO_AUTOSEED !== '0' && process.env.NODE_ENV !== 'test') {
+    void (async () => {
+      try {
+        const { demoNeedsSeed, seedDemo } = await import('../scripts/seed-demo');
+        if (await demoNeedsSeed()) {
+          console.log('[demo] بناء شركة العرض التجريبي…');
+          await seedDemo();
+        }
+      } catch (err) {
+        console.error('[demo] تعذّر بناء العرض:', err instanceof Error ? err.message : err);
+      }
+    })();
+  }
 }
 
 void bootstrap();
