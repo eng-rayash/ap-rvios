@@ -36,7 +36,9 @@ const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
 const pick = <T>(a: T[]) => a[Math.floor(rnd() * a.length)];
 const int = (lo: number, hi: number) => lo + Math.floor(rnd() * (hi - lo + 1));
 
-const IMG = (id: string, w = 1200) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=80`;
+// صورة Unsplash بمعرّفها، أو `local:<path>` صورة منتقاة منشورة على منصة المتاجر (قوالبها)
+const IMG = (id: string, w = 1200) =>
+  id.startsWith('local:') ? `https://store.rvios.com/ti/${id.slice(6)}-736.webp` : `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=80`;
 
 // ───────────────────────── الفريق ─────────────────────────
 const TEAM = [
@@ -92,7 +94,7 @@ async function main() {
   // ─────────────── الشركة والفريق ───────────────
   const org = await prisma.organization.create({
     data: {
-      syncId: randomUUID(), companyCode: 'DEMO-AZM', workspaceSlug: DEMO_WORKSPACE_SLUG,
+      syncId: randomUUID(), companyCode: DEMO_VERSION, workspaceSlug: DEMO_WORKSPACE_SLUG,
       name: 'مؤسسة الواحة للتجارة', country: 'SA', currency: 'SAR', industry: 'retail', language: 'ar',
     },
   });
@@ -315,16 +317,16 @@ async function main() {
   }
   const PRODUCTS: [string, string, string, number, number | null, number, string][] = [
     ['بن حرازي محمّص', 'البن', 'أرابيكا من مدرجات حراز بتحميص متوسط ونكهة الشوكولاتة.', 85, null, 64, '1559056199-641a0ac8b55e'],
-    ['بن خولاني', 'البن', 'حبوب خولانية كاملة بحموضة متوازنة ونهاية طويلة.', 95, 110, 40, '1497935586351-b67a49e012bf'],
-    ['بن مطري', 'البن', 'من بني مطر — نكهة فاكهة وحلاوة طبيعية.', 90, null, 35, '1611854779393-1b2da9d400fe'],
-    ['قشر بن يمني', 'البن', 'للقهوة اليمنية التقليدية بالزنجبيل والقرفة.', 45, null, 80, '1447933601403-0c6688de566e'],
-    ['عسل سدر حضرمي', 'العسل', 'عسل سدر أصلي من الموسم الأخير — كيلو.', 320, 360, 18, '1587049352846-4a222e784d38'],
-    ['عسل سدر ملكي', 'العسل', 'أجود أنواع السدر من وادي دوعن — نصف كيلو.', 450, null, 3, '1558642452-9d2a7deb7f62'],
-    ['عسل سمر جبلي', 'العسل', 'عسل جبلي داكن بطعم قوي وقوام كثيف.', 210, null, 22, '1471943311424-646960669fbc'],
-    ['دلة نحاسية', 'أدوات القهوة', 'دلة يدوية مطروقة لتقديم القهوة العربية.', 145, null, 12, '1495474472287-4d71bcdd2085'],
-    ['مطحنة يدوية', 'أدوات القهوة', 'مطحنة بتروس سيراميك وضبط دقيق للخشونة.', 120, 150, 4, '1442512595331-e89e73853f31'],
-    ['فناجين فخارية (طقم ٦)', 'أدوات القهوة', 'فناجين مصنوعة يدويًا بلمسة تراثية.', 75, null, 30, '1514432324607-a09d9b4aefdd'],
-    ['صندوق هدية الواحة', 'الهدايا', 'بن حرازي وعسل سدر ودلة صغيرة في صندوق فاخر.', 395, 450, 15, '1513885535751-8b9238bd345a'],
+    ['بن خولاني', 'البن', 'حبوب خولانية كاملة بحموضة متوازنة ونهاية طويلة.', 95, 110, 40, '1447933601403-0c6688de566e'],
+    ['بن مطري', 'البن', 'من بني مطر — نكهة فاكهة وحلاوة طبيعية، مثالي للاتيه.', 90, null, 35, '1495474472287-4d71bcdd2085'],
+    ['قشر بن يمني', 'البن', 'للقهوة اليمنية التقليدية بالزنجبيل والقرفة.', 45, null, 80, '1514432324607-a09d9b4aefdd'],
+    ['عسل سدر حضرمي', 'العسل', 'عسل سدر أصلي من الموسم الأخير — كيلو.', 320, 360, 18, 'local:cx-asal/520ae684f3de59cc83ff419a705d9a08'],
+    ['عسل سدر ملكي', 'العسل', 'أجود أنواع السدر من وادي دوعن — نصف كيلو.', 450, null, 3, 'local:cx-asal/af42c4e684ae175fcdc5baf0663b7953'],
+    ['عسل سمر جبلي', 'العسل', 'عسل جبلي داكن بطعم قوي وقوام كثيف.', 210, null, 22, '1558642452-9d2a7deb7f62'],
+    ['طقم التقطير (V60)', 'أدوات القهوة', 'قمع تقطير وإبريق بعنق رفيع وفلاتر — قهوة مختصة في البيت.', 145, null, 12, '1442512595331-e89e73853f31'],
+    ['مطحنة يدوية', 'أدوات القهوة', 'مطحنة بتروس سيراميك وضبط دقيق للخشونة.', 120, 150, 4, '1611854779393-1b2da9d400fe'],
+    ['طقم أدوات الإسبريسو', 'أدوات القهوة', 'بورتافلتر ومدكّ ولوح تقديم خشبي لتحضير الإسبريسو.', 175, null, 30, '1497935586351-b67a49e012bf'],
+    ['صندوق هدية الواحة', 'الهدايا', 'بن حرازي وعسل سدر وفنجانان في صندوق فاخر.', 395, 450, 15, '1513885535751-8b9238bd345a'],
     ['بطاقة إهداء', 'الهدايا', 'بطاقة إهداء رقمية بقيمة تختارها.', 100, null, 999, '1549465220-1a8b9238cd48'],
   ];
   const products: { id: string; name: string; price: number; variants: { id: string; v1: string; price: number }[] }[] = [];
@@ -454,6 +456,9 @@ export async function seedDemo(): Promise<void> {
   }
 }
 
+/** إصدار بيانات العرض — ارفعه حين تتغيّر البيانات فيُعاد بناء العرض في الإنتاج تلقائيًا */
+const DEMO_VERSION = 'DEMO-AZM-2';
+
 /** العمر الذي يُعاد بعده بناء العرض تلقائيًا — التواريخ نسبية، فالقديم تبهت رسومه */
 const STALE_DAYS = 60;
 
@@ -464,8 +469,8 @@ const STALE_DAYS = 60;
 export async function demoNeedsSeed(): Promise<boolean> {
   const db = new PrismaClient();
   try {
-    const org = await db.organization.findUnique({ where: { workspaceSlug: DEMO_WORKSPACE_SLUG }, select: { createdAt: true } });
-    return !org || org.createdAt.getTime() < Date.now() - STALE_DAYS * DAY;
+    const org = await db.organization.findUnique({ where: { workspaceSlug: DEMO_WORKSPACE_SLUG }, select: { createdAt: true, companyCode: true } });
+    return !org || org.companyCode !== DEMO_VERSION || org.createdAt.getTime() < Date.now() - STALE_DAYS * DAY;
   } finally {
     await db.$disconnect();
   }
