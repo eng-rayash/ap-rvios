@@ -13,6 +13,7 @@ import { TenantPrismaService } from '../../common/prisma/tenant-prisma.service';
 import { UserRole } from '../../common/tenant/tenant-context';
 import { normalizeArabic } from '../../common/text/normalize-arabic';
 import { DEMO_EMAIL, DEMO_SESSION, DEMO_WORKSPACE_SLUG } from '../demo/demo.constant';
+import { EmailCodesService } from './email-codes.service';
 import { verifyGoogleIdToken } from './google-id-token';
 
 /**
@@ -35,7 +36,62 @@ export class AuthService {
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly jwt: JwtService,
+    private readonly codes: EmailCodesService,
   ) {}
+
+  /**
+   * التسجيل من الواجهات: مع رموز البريد لا جلسة قبل تأكيده. الحساب يبقى إن تعطّل الإرسال —
+   * إعادة الإرسال تكمله، وإلا لرفض التسجيلُ التالي بريدًا «مسجَّلًا» لا يستطيع صاحبه دخوله.
+   */
+  async register(input: { email: string; password: string; displayName: string; companyName: string }) {
+    const r = await this.registerWithCompany(input);
+    if (!this.codes.enabled) return r;
+    const sent = await this.codes.issue(r.user, 'verify');
+    return { verificationRequired: true as const, email: r.user.email, sent };
+  }
+
+  /** يؤكد رمز البريد ويصدر الجلسة */
+  async verifyCode(input: { email: string; code: string; companyId?: string }) {
+    const user = await this.prisma.user.findUnique({
+      where: { email: input.email.trim().toLowerCase() },
+      select: { id: true, deletedAt: true },
+    });
+    await this.codes.consume(user && !user.deletedAt ? user.id : undefined, 'verify', input.code);
+    await this.prisma.user.update({ where: { id: user!.id }, data: { emailVerifiedAt: new Date() } });
+    return this.signIn(user!.id, false, input.companyId);
+  }
+
+  /**
+   * ردّ واحد للمسجَّل وغيره، والإرسال لا يُنتظر: زمن الردّ لا يكشف أي البُرد لها حساب.
+   */
+  forgotPassword(email: string) {
+    void (async () => {
+      const user = await this.prisma.user.findUnique({
+        where: { email: email.trim().toLowerCase() },
+        select: { id: true, email: true, deletedAt: true },
+      });
+      if (user && !user.deletedAt) await this.codes.issue(user, 'reset');
+    })().catch(() => undefined);
+    return { ok: true };
+  }
+
+  /** تغيير كلمة المرور يُبطل كل جلسة سابقة، والرمز يثبت ملكية البريد */
+  async resetPassword(input: { email: string; code: string; newPassword: string }) {
+    const user = await this.prisma.user.findUnique({
+      where: { email: input.email.trim().toLowerCase() },
+      select: { id: true, deletedAt: true },
+    });
+    await this.codes.consume(user && !user.deletedAt ? user.id : undefined, 'reset', input.code);
+    await this.prisma.user.update({
+      where: { id: user!.id },
+      data: {
+        passwordHash: await bcrypt.hash(input.newPassword, AuthService.BCRYPT_ROUNDS),
+        passwordChangedAt: new Date(),
+        emailVerifiedAt: new Date(),
+      },
+    });
+    return { ok: true };
+  }
 
   /**
    * ينشئ حسابًا وشركةً معًا، ويجعل المُنشئ مالكها.
@@ -164,6 +220,11 @@ export class AuthService {
       throw new UnauthorizedException('لا عضوية فعّالة في هذه الشركة');
     }
 
+    if (this.codes.enabled) {
+      const sent = await this.codes.issue(user, 'verify');
+      return { verificationRequired: true as const, email: user.email, sent };
+    }
+
     await this.prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
@@ -217,7 +278,7 @@ export class AuthService {
     return this.signIn(r.user.id, true);
   }
 
-  private async signIn(userId: string, isNew: boolean) {
+  private async signIn(userId: string, isNew: boolean, companyId?: string) {
     const user = await this.prisma.user.update({
       where: { id: userId },
       data: { lastLoginAt: new Date() },
@@ -229,7 +290,7 @@ export class AuthService {
         },
       },
     });
-    const membership = user.memberships[0];
+    const membership = companyId ? user.memberships.find((m) => m.organizationId === companyId) : user.memberships[0];
     if (!membership) throw new UnauthorizedException('لا عضوية فعّالة لهذا الحساب');
     return {
       accessToken: await this.signToken(user.id, membership.organizationId),

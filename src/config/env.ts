@@ -48,6 +48,13 @@ export function checkEnv(env: NodeJS.ProcessEnv = process.env): EnvReport {
 
   if (env.WEBHOOK_ALLOW_PRIVATE === '1') errors.push('WEBHOOK_ALLOW_PRIVATE=1 للتطوير فقط — يفتح الخطافات على الشبكة الداخلية');
 
+  if (env.EMAIL_OTP_ENABLED === '1') {
+    need('RESEND_API_KEY', 'رموز التحقق تُرسل عبر Resend');
+    need('EMAIL_FROM', 'عنوان المرسل من نطاق موثَّق في Resend، مثل RVIOS <no-reply@rvios.com>');
+  } else {
+    warnings.push('EMAIL_OTP_ENABLED غير مفعّل — الدخول والتسجيل بلا رمز تحقق');
+  }
+
   const channels = (env.NOTIFY_CHANNELS ?? 'console').split(',').map((c) => c.trim());
   if (channels.includes('whatsapp') && (!env.META_TOKEN || !env.WA_PHONE_ID)) {
     errors.push('NOTIFY_CHANNELS فيه whatsapp دون META_TOKEN و WA_PHONE_ID');

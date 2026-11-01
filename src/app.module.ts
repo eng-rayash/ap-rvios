@@ -9,6 +9,8 @@ import { JwtAuthGuard } from './common/tenant/jwt-auth.guard';
 import { TenantGuard } from './common/tenant/tenant.guard';
 import { AuthController } from './modules/auth/auth.controller';
 import { AuthService } from './modules/auth/auth.service';
+import { EmailCodesService } from './modules/auth/email-codes.service';
+import { EmailService } from './modules/auth/email.service';
 import { JwtStrategy } from './modules/auth/jwt.strategy';
 import { ClientsController } from './modules/clients/clients.controller';
 import { ClientsService } from './modules/clients/clients.service';
@@ -167,6 +169,8 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     TasksService,
     JwtStrategy,
     AuthService,
+    EmailService,
+    EmailCodesService,
     MeetingsService,
     ClientsService,
     InvoicesService,

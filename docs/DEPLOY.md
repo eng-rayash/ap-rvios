@@ -49,6 +49,10 @@ docker build -t azm-api .
 | `NODE_ENV` | ✅ | `production` (مضبوط في الصورة) |
 | `DATABASE_URL` | ✅ | رابط القاعدة من الخطوة ١ |
 | `JWT_SECRET` | ✅ | سرّ جديد، ٣٢ حرفًا فأكثر: `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` |
+| `RESEND_API_KEY` | | مفتاح Resend للبريد الصادر |
+| `EMAIL_FROM` | | المرسل من نطاق موثَّق في Resend: `RVIOS <no-reply@rvios.com>` |
+| `EMAIL_REPLY_TO` | | عنوان الردود: `rviostech@gmail.com` |
+| `EMAIL_OTP_ENABLED` | | `1` = رمز بالبريد عند التسجيل والدخول — بعد توثيق النطاق فقط، وتأكد أن حسابات فريق المنصة ببريد حقيقي |
 | `GOOGLE_CLIENT_ID` | | معرّف OAuth لتطبيق الويب في Google (ليس سرًّا) — يفعّل `POST /auth/google`، ويساويه `NEXT_PUBLIC_GOOGLE_CLIENT_ID` في AzmSmart |
 | `JWT_EXPIRES_IN` | | `7d` |
 | `PUBLIC_API_URL` | ✅ | `https://api.rvios.com` |

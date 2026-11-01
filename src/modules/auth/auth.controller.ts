@@ -1,9 +1,11 @@
-import { Body, Controller, Get, HttpCode, Ip, Post, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, Ip, Post, UnauthorizedException } from '@nestjs/common';
 
 import { Public, Tenant } from '../../common/tenant/tenant.guard';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { PublicRateLimit } from '../shop/public/rate-limit';
 import { AuthService } from './auth.service';
+import { EmailCodesService } from './email-codes.service';
+import { EmailDto, ResetPasswordDto, VerifyCodeDto } from './dto/email-code.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -26,6 +28,7 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly limit: PublicRateLimit,
+    private readonly codes: EmailCodesService,
   ) {}
 
   /** عشرة حسابات في الساعة من عنوان واحد — تكفي مكتبًا مشتركًا وتقطع الإنشاء الآلي */
@@ -33,7 +36,7 @@ export class AuthController {
   @Post('register')
   register(@Body() dto: RegisterDto, @Ip() ip: string) {
     this.limit.check(`register:${ip}`, limitOf('AUTH_REGISTER_LIMIT', 10), 60 * 60_000);
-    return this.auth.registerWithCompany(dto);
+    return this.auth.register(dto);
   }
 
   /**
@@ -58,6 +61,52 @@ export class AuthController {
         this.limit.fail(account, LOGIN_WINDOW);
         this.limit.fail(source, LOGIN_WINDOW);
       }
+      throw e;
+    }
+  }
+
+  /** تأكيد رمز البريد بعد التسجيل أو الدخول — هنا تصدر الجلسة */
+  @Public()
+  @Post('verify')
+  @HttpCode(200)
+  async verify(@Body() dto: VerifyCodeDto, @Ip() ip: string) {
+    return this.guarded(`verify:ip:${ip}`, () => this.auth.verifyCode(dto));
+  }
+
+  @Public()
+  @Post('verify/resend')
+  @HttpCode(200)
+  async resend(@Body() dto: EmailDto, @Ip() ip: string) {
+    this.limit.check(`resend:${ip}`, limitOf('AUTH_RESEND_LIMIT', 30), 60 * 60_000);
+    await this.codes.resendVerify(dto.email);
+    return { ok: true };
+  }
+
+  @Public()
+  @Post('password/forgot')
+  @HttpCode(200)
+  forgot(@Body() dto: EmailDto, @Ip() ip: string) {
+    this.limit.check(`forgot:${ip}`, limitOf('AUTH_FORGOT_LIMIT', 10), 60 * 60_000);
+    return this.auth.forgotPassword(dto.email);
+  }
+
+  @Public()
+  @Post('password/reset')
+  @HttpCode(200)
+  async reset(@Body() dto: ResetPasswordDto, @Ip() ip: string) {
+    return this.guarded(`reset:ip:${ip}`, () => this.auth.resetPassword(dto));
+  }
+
+  /**
+   * تخمين الرموز عبر حسابات كثيرة من عنوان واحد — حدّ الرمز نفسه لا يراه.
+   * ثلاثون رمزًا خاطئًا في ربع ساعة تكفي خطأ أي مستخدم حقيقي.
+   */
+  private async guarded<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    this.limit.assertOpen(key, limitOf('AUTH_CODE_IP_LIMIT', 30));
+    try {
+      return await fn();
+    } catch (e) {
+      if (e instanceof BadRequestException) this.limit.fail(key, LOGIN_WINDOW);
       throw e;
     }
   }

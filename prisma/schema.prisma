@@ -122,8 +122,26 @@ model User {
 
   memberships Membership[]
   auditLogs   AuditLog[]
+  emailCodes  EmailCode[]
 
   @@map("users")
+}
+
+/// رمز بريد نشط لكل مستخدم وغرض (`verify` | `reset`) — يُخزَّن مجزَّأً، والجديد يحلّ محل القديم
+model EmailCode {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  purpose    String
+  codeHash   String    @map("code_hash")
+  attempts   Int       @default(0)
+  sentAt     DateTime  @map("sent_at")
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, purpose])
+  @@map("email_codes")
 }
 
 /// عضوية مستخدم في شركة — هنا يعيش الدور.
