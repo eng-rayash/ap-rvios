@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 
@@ -16,13 +17,17 @@ import {
   TenantContext,
   UserRole,
 } from '../../../common/tenant/tenant-context';
-import { CreateStoreDto, SetStoreStatusDto, UpdateStoreDto } from './stores.dto';
+import { StoreAppearanceService } from './store-appearance.service';
+import { CreateStoreDto, SaveAppearanceDto, SetStoreStatusDto, UpdateStoreDto } from './stores.dto';
 import { StoresService } from './stores.service';
 
 /** متاجر الشركة — قراءة لأي عضو، والكتابة للإدارة فما فوق. */
 @Controller('shop/stores')
 export class StoresController {
-  constructor(private readonly stores: StoresService) {}
+  constructor(
+    private readonly stores: StoresService,
+    private readonly appearance: StoreAppearanceService,
+  ) {}
 
   @Get()
   list(@Tenant() ctx: TenantContext) {
@@ -66,6 +71,17 @@ export class StoresController {
     return this.stores.update(ctx, storeId, dto);
   }
 
+  /** حفظ «شكل المتجر» — يقفل التعديل أسبوعًا */
+  @RequireRole(UserRole.Admin)
+  @Put(':storeId/appearance')
+  saveAppearance(
+    @Tenant() ctx: TenantContext,
+    @Param('storeId', ParseUUIDPipe) storeId: string,
+    @Body() dto: SaveAppearanceDto,
+  ) {
+    return this.appearance.save(ctx, storeId, dto);
+  }
+
   @RequireRole(UserRole.Admin)
   @Delete(':storeId')
   remove(
@@ -80,7 +96,10 @@ export class StoresController {
 @PlatformOnly()
 @Controller('platform/shop-stores')
 export class PlatformStoresController {
-  constructor(private readonly stores: StoresService) {}
+  constructor(
+    private readonly stores: StoresService,
+    private readonly appearance: StoreAppearanceService,
+  ) {}
 
   @Get()
   list(@Platform() _ctx: PlatformContext, @Query('q') q?: string) {
@@ -94,6 +113,15 @@ export class PlatformStoresController {
     @Body() dto: SetStoreStatusDto,
   ) {
     return this.stores.platformSetStatus(storeId, dto.suspended);
+  }
+
+  /** يفتح تعديل «شكل المتجر» قبل انتهاء أسبوع القفل */
+  @Post(':storeId/appearance-unlock')
+  unlockAppearance(
+    @Platform() _ctx: PlatformContext,
+    @Param('storeId', ParseUUIDPipe) storeId: string,
+  ) {
+    return this.appearance.unlock(storeId);
   }
 
   /** شارة «موثَّق» — تمنحها الإدارة بعد المراجعة. */

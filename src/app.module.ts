@@ -52,6 +52,7 @@ import { ShopPublicService } from './modules/shop/public/public.service';
 import { PublicRateLimit } from './modules/shop/public/rate-limit';
 import { ShopStoreAccessService } from './modules/shop/shop-store-access.service';
 import { PlatformStoresController, StoresController } from './modules/shop/stores/stores.controller';
+import { StoreAppearanceService } from './modules/shop/stores/store-appearance.service';
 import { StoresService } from './modules/shop/stores/stores.service';
 import { PlatformSettingsService } from './modules/shop-billing/platform-settings.service';
 import { PlatformShopBillingController } from './modules/shop-billing/platform-shop-billing.controller';
@@ -176,6 +177,7 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     ShopInvoicesService,
     ShopStoreAccessService,
     StoresService,
+    StoreAppearanceService,
     CatalogService,
     OrdersService,
     ZonesService,

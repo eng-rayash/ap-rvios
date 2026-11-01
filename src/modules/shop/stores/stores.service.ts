@@ -50,6 +50,8 @@ export function storeView(store: ShopStore, plan: string) {
     logo: store.logo,
     banner: store.banner,
     showcase: store.showcase,
+    appearance: store.appearance,
+    appearanceLockedUntil: store.appearanceLockedUntil,
     color: store.color,
     colorDeep: store.colorDeep,
     // لو هبط متجر من برو تبقى قيمته محفوظة لكن الواجهة تعود إلى «التوقيع»

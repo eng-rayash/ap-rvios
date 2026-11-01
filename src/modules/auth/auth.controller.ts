@@ -4,6 +4,7 @@ import { Public, Tenant } from '../../common/tenant/tenant.guard';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { PublicRateLimit } from '../shop/public/rate-limit';
 import { AuthService } from './auth.service';
+import { GoogleLoginDto } from './dto/google-login.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { SwitchCompanyDto } from './dto/switch-company.dto';
@@ -59,6 +60,15 @@ export class AuthController {
       }
       throw e;
     }
+  }
+
+  /** الدخول أو التسجيل بحساب Google — الهوية من رمز توقّعه Google لا من العميل */
+  @Public()
+  @Post('google')
+  @HttpCode(200)
+  google(@Body() dto: GoogleLoginDto, @Ip() ip: string) {
+    this.limit.check(`google:${ip}`, limitOf('AUTH_GOOGLE_LIMIT', 30), 60 * 60_000);
+    return this.auth.google(dto.credential);
   }
 
   /** دخول العرض التجريبي (للقراءة فقط) — ٣٠ مرة في الساعة لكل عنوان */

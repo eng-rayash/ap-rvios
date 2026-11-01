@@ -1,6 +1,7 @@
 import {
   ConflictException,
   Injectable,
+  ServiceUnavailableException,
   UnauthorizedException,
   NotFoundException,
 } from '@nestjs/common';
@@ -12,6 +13,7 @@ import { TenantPrismaService } from '../../common/prisma/tenant-prisma.service';
 import { UserRole } from '../../common/tenant/tenant-context';
 import { normalizeArabic } from '../../common/text/normalize-arabic';
 import { DEMO_EMAIL, DEMO_SESSION, DEMO_WORKSPACE_SLUG } from '../demo/demo.constant';
+import { verifyGoogleIdToken } from './google-id-token';
 
 /**
  * AZM — المصادقة
@@ -175,6 +177,66 @@ export class AuthService {
         ...m.organization,
         role: m.role,
       })),
+    };
+  }
+
+  /**
+   * الدخول بحساب Google، ويُنشئ حسابًا وشركة لأول مرة (يكمل بياناته ومتجره من داخل حسابه).
+   *
+   * بريد مسجَّل بكلمة مرور لا يُربط تلقائيًا: التسجيل بكلمة مرور لا يؤكد البريد، فالربط
+   * يترك لمن سجّله أولًا — ولو كان منتحلًا — مدخلًا إلى حساب صاحب البريد الحقيقي.
+   */
+  async google(credential: string) {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) throw new ServiceUnavailableException('الدخول بحساب Google غير مفعّل');
+    const g = await verifyGoogleIdToken(credential, clientId);
+
+    const linked = await this.prisma.user.findUnique({ where: { googleSub: g.sub } });
+    if (linked && !linked.deletedAt) return this.signIn(linked.id, false);
+    if (linked) throw new UnauthorizedException('هذا الحساب محذوف');
+
+    const taken = await this.prisma.user.findUnique({ where: { email: g.email }, select: { id: true } });
+    if (taken) {
+      throw new ConflictException({
+        message: 'هذا البريد مسجَّل بكلمة مرور — سجّل الدخول بها',
+        code: 'EMAIL_USES_PASSWORD',
+      });
+    }
+
+    const r = await this.registerWithCompany({
+      email: g.email,
+      // لا يُعرف لأحد: الدخول بكلمة مرور يبدأ بـ«نسيت كلمة المرور»
+      password: randomUUID() + randomUUID(),
+      displayName: g.name.slice(0, 80),
+      companyName: g.name.slice(0, 120),
+    });
+    await this.prisma.user.update({
+      where: { id: r.user.id },
+      data: { googleSub: g.sub, emailVerifiedAt: new Date(), avatarUrl: g.picture },
+    });
+    return this.signIn(r.user.id, true);
+  }
+
+  private async signIn(userId: string, isNew: boolean) {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { lastLoginAt: new Date() },
+      include: {
+        memberships: {
+          where: { isActive: true, deletedAt: null },
+          include: { organization: { select: { id: true, name: true, companyCode: true, workspaceSlug: true, trialEndsAt: true } } },
+          orderBy: { role: 'asc' },
+        },
+      },
+    });
+    const membership = user.memberships[0];
+    if (!membership) throw new UnauthorizedException('لا عضوية فعّالة لهذا الحساب');
+    return {
+      accessToken: await this.signToken(user.id, membership.organizationId),
+      user: this.publicUser(user),
+      company: membership.organization,
+      companies: user.memberships.map((m) => ({ ...m.organization, role: m.role })),
+      isNew,
     };
   }
 

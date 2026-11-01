@@ -96,6 +96,8 @@ model User {
   passwordHash String  @map("password_hash")
   /// تغيير كلمة المرور يُبطل كل رمز صدر قبله (يُقارَن بـ`iat` في الحارس)
   passwordChangedAt DateTime? @map("password_changed_at")
+  /// هوية Google (`sub`) — الدخول بها يحدّد الحساب ولو تغيّر بريده هناك
+  googleSub    String? @unique @map("google_sub")
   displayName  String  @map("display_name")
   phone        String?
   avatarUrl    String? @map("avatar_url")
@@ -880,6 +882,10 @@ model ShopStore {
   /// نطاق خاص للباقات المدفوعة (mystore.com) — بلا بروتوكول، بأحرف صغيرة. يحلّه
   /// middleware منصة المتاجر إلى المتجر؛ ويُهمَل إن هبطت الباقة إلى المجانية.
   customDomain   String?  @unique @map("custom_domain")
+  /// تعديلات «شكل المتجر» على القالب الأساسي: `{ copy: {مفتاح: نص}, hidden: [عنصر] }`
+  appearance            Json      @default("{}")
+  /// يُقفل بعد كل حفظ أسبوعًا — وفريق RVIOS يفتحه قبل ذلك
+  appearanceLockedUntil DateTime? @map("appearance_locked_until")
 
   /// ISO حرفان — العملة تُشتقّ منها ولا تُخزَّن
   country String @default("YE")

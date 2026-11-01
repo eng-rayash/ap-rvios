@@ -49,6 +49,7 @@ docker build -t azm-api .
 | `NODE_ENV` | ✅ | `production` (مضبوط في الصورة) |
 | `DATABASE_URL` | ✅ | رابط القاعدة من الخطوة ١ |
 | `JWT_SECRET` | ✅ | سرّ جديد، ٣٢ حرفًا فأكثر: `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` |
+| `GOOGLE_CLIENT_ID` | | معرّف OAuth لتطبيق الويب في Google (ليس سرًّا) — يفعّل `POST /auth/google`، ويساويه `NEXT_PUBLIC_GOOGLE_CLIENT_ID` في AzmSmart |
 | `JWT_EXPIRES_IN` | | `7d` |
 | `PUBLIC_API_URL` | ✅ | `https://api.rvios.com` |
 | `CORS_ORIGINS` | ✅ | `https://azm.rvios.com,https://store.rvios.com,https://rvios.store,https://*.rvios.store,https://rvios.com,https://www.rvios.com` |

@@ -1,14 +1,19 @@
+import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsIn,
   IsInt,
+  IsObject,
   IsOptional,
   IsString,
+  IsUUID,
   Length,
   Matches,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 const HEX = /^#[0-9A-Fa-f]{6}$/;
@@ -96,4 +101,26 @@ export class UpdateStoreDto {
 export class SetStoreStatusDto {
   @IsBoolean()
   suspended!: boolean;
+}
+
+/** منتج في حفظ «شكل المتجر» — بلا `id` يُنشأ جديدًا */
+export class AppearanceProductDto {
+  @IsOptional() @IsUUID() id?: string;
+  @IsString() @Length(1, 100) name!: string;
+  @IsInt() @Min(0) price!: number;
+  @IsOptional() @IsInt() @Min(0) oldPrice?: number;
+  @IsOptional() @IsString() @MaxLength(600) image?: string;
+}
+
+export class SaveAppearanceDto {
+  @IsOptional() @IsString() @Length(2, 60) name?: string;
+  @IsOptional() @IsString() @MaxLength(600) logo?: string;
+  @IsOptional() @IsString() @MaxLength(600) banner?: string;
+  @IsOptional() @IsString() @MaxLength(600) showcase?: string;
+  @IsOptional() @Matches(HEX) color?: string;
+  /** نصوص القالب — الخدمة تقبل مفاتيحها المعروفة وتقصّ الطول */
+  @IsOptional() @IsObject() copy?: Record<string, string>;
+  @IsOptional() @IsArray() @ArrayMaxSize(20) @IsString({ each: true }) hidden?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(600) @IsUUID('all', { each: true }) deleteProducts?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(200) @ValidateNested({ each: true }) @Type(() => AppearanceProductDto) products?: AppearanceProductDto[];
 }

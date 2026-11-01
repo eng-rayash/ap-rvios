@@ -87,7 +87,7 @@ export class ShopPublicService {
       id: v.id, slug: v.slug, name: v.name, sector: v.sector,
       tagline: v.tagline, about: v.about, city: v.city, address: v.address,
       whatsapp: v.whatsapp, hours: v.hours, logo: v.logo, banner: v.banner,
-      showcase: v.showcase, color: v.color, colorDeep: v.colorDeep,
+      showcase: v.showcase, appearance: v.appearance, color: v.color, colorDeep: v.colorDeep,
       theme: v.theme, layout: v.layout, plan: v.plan, verified: v.verified,
       // منصة المتاجر الجديدة: القالب الفعّال، والباقة برموزها (free|pro|biz)
       template: v.template, planTier: PUBLIC_PLAN[PLAN_BY_CODE[v.plan] ?? 0], customDomain: v.customDomain,
