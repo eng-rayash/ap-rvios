@@ -208,6 +208,37 @@ describe('قوالب منصة المتاجر', () => {
     await request(http).get(`/api/v1/shop/storefront/domain/resolve?host=${domain}`).expect(404);
   });
 
+  it('طلب الإنشاء بلا إيصال: فاتورة الباقة المفتوحة تسعّر القالب، وتأكيد الفريق يفعّلهما', async () => {
+    const o = mk('order');
+    await register(o);
+    const oSlug = `ord-${randomUUID().slice(0, 6)}`;
+    const st = await request(http).post('/api/v1/shop/stores').set(auth(o.token))
+      .send({ name: 'متجر الطلب', slug: oSlug, whatsapp: '777123456', country: 'YE' }).expect(201);
+    const ref = st.body.store.id;
+    try {
+      const plan = await request(http).post('/api/v1/shop/invoices').set(auth(o.token))
+        .send({ storeRef: ref, kind: 0, plan: 'plus', months: 1 }).expect(201);
+      const tpl = await request(http).post('/api/v1/shop/invoices').set(auth(o.token))
+        .send({ storeRef: ref, kind: 4, template: 'noir' }).expect(201);
+      expect(Number(tpl.body.amount)).toBe(50); // سعر الإدارة من الاختبار السابق، بلا خصم في الاحترافية
+
+      // لا شيء يتفعّل قبل تأكيد الفريق
+      const before = await request(http).get(`/api/v1/shop/storefront/${oSlug}/catalogue`).expect(200);
+      expect(before.body.store.planTier).toBe('free');
+      expect(before.body.store.template).toBe('essential');
+
+      for (const id of [plan.body.id, tpl.body.id]) {
+        await request(http).patch(`/api/v1/platform/invoices/${id}/review`).set(auth(staff.token)).send({ decision: 'paid' }).expect(200);
+      }
+      const after = await request(http).get(`/api/v1/shop/storefront/${oSlug}/catalogue`).expect(200);
+      expect(after.body.store.planTier).toBe('pro');
+      expect(after.body.store.template).toBe('noir');
+    } finally {
+      await prisma.organization.delete({ where: { id: o.companyId } }).catch(() => undefined);
+      await prisma.user.delete({ where: { email: o.email } }).catch(() => undefined);
+    }
+  });
+
   it('قالب غير معروف يُرفض', async () => {
     await request(http).patch(`/api/v1/shop/stores/${storeId}`).set(auth(m.token)).send({ template: 'nope' }).expect(400);
   });

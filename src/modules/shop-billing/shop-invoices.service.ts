@@ -81,7 +81,18 @@ export class ShopInvoicesService {
       if (store.ownedTemplates.includes(id)) throw new ConflictException({ message: 'هذا القالب مملوك لمتجرك بالفعل', code: 'TEMPLATE_OWNED' });
       const sub = await this.subs.ensure(ctx.companyId, storeRef);
       const base = (await this.settings.templatePrices())[id] ?? STORE_TEMPLATES[id].price;
-      const cost = templateCost(id, this.subs.effectivePlan(sub), base);
+      // طلب إنشاء المتجر (باقة + قالب) يُدفع معًا عبر الفريق: فاتورة الباقة المفتوحة تسعّر القالب
+      // قبل تفعيلها — بلا باقة مطلوبة تبقى القوالب المدفوعة مرفوضة كما كانت
+      let pricedPlan = this.subs.effectivePlan(sub);
+      if (pricedPlan === ShopPlan.Basic) {
+        const pending = await db.platformInvoice.findFirst({
+          where: { storeRef, kind: InvoiceKind.Subscription, status: { in: [InvoiceStatus.Unpaid, InvoiceStatus.UnderReview] }, deletedAt: null },
+          orderBy: { createdAt: 'desc' },
+          select: { plan: true },
+        });
+        if (pending?.plan) pricedPlan = pending.plan as ShopPlan;
+      }
+      const cost = templateCost(id, pricedPlan, base);
       if (cost === null) {
         throw new ConflictException({ message: 'القوالب المدفوعة تحتاج باقة مدفوعة — رقِّ باقتك أولاً', code: 'PLAN_REQUIRED' });
       }
