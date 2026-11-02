@@ -1,8 +1,11 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
   ForbiddenException,
+  UploadedFile,
+  UseInterceptors,
   Get,
   Param,
   ParseUUIDPipe,
@@ -18,6 +21,9 @@ import {
   TenantContext,
   UserRole,
 } from '../../../common/tenant/tenant-context';
+import { FileInterceptor } from '@nestjs/platform-express';
+
+import { MAX_IMAGE_BYTES, UploadedBinary, UploadsService } from '../../uploads/uploads.service';
 import { StoreAppearanceService } from './store-appearance.service';
 import { StoreRequestsService } from './store-requests.service';
 import { CreateStoreDto, SaveAppearanceDto, SetStoreStatusDto, UpdateStoreDto } from './stores.dto';
@@ -105,6 +111,7 @@ export class PlatformStoresController {
     private readonly stores: StoresService,
     private readonly appearance: StoreAppearanceService,
     private readonly requests: StoreRequestsService,
+    private readonly uploads: UploadsService,
   ) {}
 
   /** طلبات المتاجر بالباقات المدفوعة — بانتظار الدفع والتفعيل */
@@ -129,6 +136,35 @@ export class PlatformStoresController {
     @Body() body: { reason?: string },
   ) {
     return this.requests.reject(storeId, ctx, typeof body?.reason === 'string' ? body.reason.slice(0, 300) : undefined);
+  }
+
+  /** محرر «شكل المتجر» من لوحة المنصة: المتجر ومنتجاته */
+  @Get(':storeId/editor')
+  editor(@Platform() ctx: PlatformContext, @Param('storeId', ParseUUIDPipe) storeId: string) {
+    return this.appearance.teamEditor(storeId, ctx);
+  }
+
+  /** حفظ شكل متجر من لوحة المنصة — بلا قفل الأسبوع */
+  @Put(':storeId/appearance')
+  saveAppearance(
+    @Platform() ctx: PlatformContext,
+    @Param('storeId', ParseUUIDPipe) storeId: string,
+    @Body() dto: SaveAppearanceDto,
+  ) {
+    return this.appearance.teamSave(storeId, ctx, dto);
+  }
+
+  /** رفع صورة إلى مجلد متجر — لمحرر الشكل في لوحة المنصة */
+  @Post(':storeId/uploads')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_IMAGE_BYTES * 4, files: 1 } }))
+  async upload(
+    @Platform() _ctx: PlatformContext,
+    @Param('storeId', ParseUUIDPipe) storeId: string,
+    @UploadedFile() file?: UploadedBinary,
+  ) {
+    if (!file) throw new BadRequestException('لم يُرفق ملف (الحقل file)');
+    const store = await this.stores.platformStore(storeId);
+    return this.uploads.saveImage(store.companyId, file, store.id);
   }
 
   /** حذف متجر نهائيًا — للمدير العام وحده */

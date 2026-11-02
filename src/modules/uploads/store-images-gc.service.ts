@@ -67,7 +67,7 @@ export class StoreImagesGc implements OnModuleInit, OnModuleDestroy {
   /** الروابط التي ما زال المتجر يستعملها — صوره وإيصالاته */
   private async referenced(storeId: string): Promise<Set<string>> {
     const [store, products, gallery, variants, orders, invoices] = await Promise.all([
-      this.prisma.shopStore.findUnique({ where: { id: storeId }, select: { logo: true, banner: true, showcase: true } }),
+      this.prisma.shopStore.findUnique({ where: { id: storeId }, select: { logo: true, banner: true, showcase: true, appearance: true } }),
       this.prisma.shopProduct.findMany({ where: { storeId }, select: { image: true } }),
       this.prisma.shopProductImage.findMany({ where: { storeId }, select: { url: true } }),
       this.prisma.shopProductVariant.findMany({ where: { storeId }, select: { image: true } }),
@@ -76,6 +76,8 @@ export class StoreImagesGc implements OnModuleInit, OnModuleDestroy {
     ]);
     const urls = [
       store?.logo, store?.banner, store?.showcase,
+      // صور «شكل المتجر» التي حلّت محل صور القالب
+      ...Object.values(((store?.appearance as { images?: Record<string, unknown> } | null)?.images) ?? {}).filter((v): v is string => typeof v === 'string'),
       ...products.map((p) => p.image), ...gallery.map((g) => g.url), ...variants.map((v) => v.image),
       ...orders.map((o) => o.payProof), ...invoices.map((i) => i.proofKey),
     ];

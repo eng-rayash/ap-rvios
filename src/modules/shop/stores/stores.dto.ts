@@ -128,7 +128,9 @@ export class SaveAppearanceDto {
   @IsOptional() @Matches(HEX) color?: string;
   /** نصوص القالب — الخدمة تقبل مفاتيحها المعروفة وتقصّ الطول */
   @IsOptional() @IsObject() copy?: Record<string, string>;
-  @IsOptional() @IsArray() @ArrayMaxSize(20) @IsString({ each: true }) hidden?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(80) @IsString({ each: true }) hidden?: string[];
+  /** صورة من صور القالب (بمعرّفها) ← رابط صورة التاجر */
+  @IsOptional() @IsObject() images?: Record<string, string>;
   @IsOptional() @IsArray() @ArrayMaxSize(600) @IsUUID('all', { each: true }) deleteProducts?: string[];
   @IsOptional() @IsArray() @ArrayMaxSize(200) @ValidateNested({ each: true }) @Type(() => AppearanceProductDto) products?: AppearanceProductDto[];
 }

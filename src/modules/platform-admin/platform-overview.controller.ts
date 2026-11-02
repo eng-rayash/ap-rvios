@@ -69,6 +69,28 @@ export class PlatformOverviewController {
     for (const c of newCompanies) { const b = at(c.createdAt); if (b) b.companies += 1; }
     for (const s of newStores) { const b = at(s.createdAt); if (b) b.stores += 1; }
 
+    const week = new Date(now.getTime() - 7 * 86_400_000);
+    const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const [pendingRequests, staff, newUsers, recentRequests, recentStores, recentUsers, openInvoices] = await Promise.all([
+      this.prisma.shopStore.count({ where: { status: StoreStatus.Pending } }),
+      this.prisma.user.count({ where: { deletedAt: null, isPlatformStaff: true } }),
+      this.prisma.user.count({ where: { deletedAt: null, createdAt: { gte: week } } }),
+      this.prisma.shopStore.findMany({
+        where: { status: StoreStatus.Pending }, orderBy: { createdAt: 'desc' }, take: 5,
+        select: { id: true, name: true, slug: true, template: true, createdAt: true, organization: { select: { name: true } } },
+      }),
+      this.prisma.shopStore.findMany({
+        where: { status: { not: StoreStatus.Pending } }, orderBy: { createdAt: 'desc' }, take: 6,
+        select: { id: true, name: true, slug: true, status: true, template: true, createdAt: true, organization: { select: { name: true } }, _count: { select: { products: true, orders: true } } },
+      }),
+      this.prisma.user.findMany({
+        where: { deletedAt: null }, orderBy: { createdAt: 'desc' }, take: 6,
+        select: { id: true, email: true, displayName: true, createdAt: true, isPlatformStaff: true },
+      }),
+      this.prisma.platformInvoice.aggregate({ where: { deletedAt: null, status: { in: [0, 1] } }, _sum: { amount: true } }),
+    ]);
+    const revenueMonth = paidRecent.filter((p) => p.paidAt && p.paidAt >= month).reduce((a, p) => a + Number(p.amount), 0);
+
     const byPlan = await this.prisma.storeSubscription.groupBy({
       by: ['plan'],
       where: { deletedAt: null },
@@ -87,7 +109,15 @@ export class PlatformOverviewController {
         graceSubscriptions: subsGrace,
         expiringSoon: subsSoon,
         pendingInvoices,
+        pendingRequests,
+        staff,
+        newUsers7d: newUsers,
+        revenueMonth,
+        openInvoicesAmount: Number(openInvoices._sum.amount ?? 0),
       },
+      recentRequests,
+      recentStores: recentStores.map(({ _count, ...s }) => ({ ...s, products: _count.products, orders: _count.orders })),
+      recentUsers,
       plans: byPlan.map((p) => ({ plan: p.plan, count: p._count._all })),
       series: buckets.map(({ month, revenue, companies: c, stores: s }) => ({ month, revenue, companies: c, stores: s })),
     };

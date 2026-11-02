@@ -384,6 +384,12 @@ export class StoresService {
     return { ok: true };
   }
 
+  async platformStore(storeId: string) {
+    const store = await this.prisma.shopStore.findUnique({ where: { id: storeId } });
+    if (!store) throw new NotFoundException('المتجر غير موجود');
+    return store;
+  }
+
   /** فريق المنصة: حذف متجر (أو طلب مرفوض) بكل ما فيه */
   async platformDelete(storeId: string) {
     const store = await this.prisma.shopStore.findUnique({ where: { id: storeId } });

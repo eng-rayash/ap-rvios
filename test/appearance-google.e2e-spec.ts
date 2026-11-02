@@ -90,7 +90,7 @@ describe('شكل المتجر والدخول بحساب Google', () => {
       name: 'الاسم الجديد',
       logo: 'https://cdn.test/logo.webp',
       banner: 'https://cdn.test/hero.webp',
-      copy: { h1: 'عنوان جديد', storyTxt: '  قصتنا  ', unknown: 'يُهمل' },
+      copy: { h1: 'عنوان جديد', storyTxt: '  قصتنا  ', unknown: 'يُهمل', 'not a key!': 'x' },
       hidden: ['sub', 'storyImg', 'unknown'],
       deleteProducts: [seedId],
       products: [{ name: 'عطر', price: 250, oldPrice: 300, image: 'https://cdn.test/p.webp' }],
@@ -100,7 +100,7 @@ describe('شكل المتجر والدخول بحساب Google', () => {
     const c = await request(http).get(`/api/v1/shop/storefront/${slug}/catalogue`).expect(200);
     expect(c.body.store.name).toBe('الاسم الجديد');
     expect(c.body.store.banner).toBe('https://cdn.test/hero.webp');
-    expect(c.body.store.appearance).toEqual({ copy: { h1: 'عنوان جديد', storyTxt: 'قصتنا' }, hidden: ['sub', 'storyImg'] });
+    expect(c.body.store.appearance).toEqual({ copy: { h1: 'عنوان جديد', storyTxt: 'قصتنا', unknown: 'يُهمل' }, hidden: ['sub', 'storyImg', 'unknown'], images: {} });
     expect(c.body.store.appearanceLockedUntil).toBeUndefined();
     expect(c.body.products.map((p: { name: string }) => p.name)).toEqual(['عطر']);
     expect(c.body.products[0].oldPrice).toBe(300);
@@ -117,14 +117,29 @@ describe('شكل المتجر والدخول بحساب Google', () => {
     await request(http).put(url()).set(auth(token)).send({ copy: { h1: 'بعد الفتح' } }).expect(200);
   });
 
-  it('متجر بباقة مدفوعة لا يدخل المحرر', async () => {
+  it('متجر بباقة مدفوعة يعدّل شكله أيضًا، وفريق المنصة يعدّله بلا قفل', async () => {
     const list = await request(http).get('/api/v1/platform/store-subscriptions').set(auth(staffToken)).expect(200);
     const sub = list.body.subscriptions.find((s: { storeRef: string }) => s.storeRef === storeId);
     await request(http).patch(`/api/v1/platform/store-subscriptions/${sub.id}`).set(auth(staffToken))
       .send({ plan: 1, status: 0, extendDays: 30 }).expect(200);
     await request(http).post(`/api/v1/platform/shop-stores/${storeId}/appearance-unlock`).set(auth(staffToken)).expect(201);
-    const r = await request(http).put(url()).set(auth(token)).send({ copy: { h1: 'ممنوع' } }).expect(409);
-    expect(JSON.stringify(r.body)).toContain('APPEARANCE_UNAVAILABLE');
+    await request(http).put(url()).set(auth(token)).send({
+      copy: { heroTitle: 'عنوان قالب مدفوع', 'bad key': 'يُهمل' },
+      images: { '1442512595331-e89e73853f31': 'https://cdn.test/hero2.webp', other: 'javascript:alert(1)' },
+      hidden: ['img:1511537190424-bbbab87ac5eb'],
+    }).expect(200);
+    const c = await request(http).get(`/api/v1/shop/storefront/${slug}/catalogue`).expect(200);
+    expect(c.body.store.appearance.copy).toEqual({ heroTitle: 'عنوان قالب مدفوع' });
+    expect(c.body.store.appearance.images).toEqual({ '1442512595331-e89e73853f31': 'https://cdn.test/hero2.webp' });
+
+    // مقفول على التاجر الآن — والفريق يعدّل ولا يمدّد القفل
+    await request(http).put(url()).set(auth(token)).send({ copy: { h1: 'تاجر' } }).expect(409);
+    const team = await request(http).put(`/api/v1/platform/shop-stores/${storeId}/appearance`).set(auth(staffToken)).send({ copy: { h1: 'من الفريق' } }).expect(200);
+    expect(team.body.store.appearance.copy.h1).toBe('من الفريق');
+    const editor = await request(http).get(`/api/v1/platform/shop-stores/${storeId}/editor`).set(auth(staffToken)).expect(200);
+    expect(editor.body.store.slug).toBe(slug);
+    expect(Array.isArray(editor.body.products)).toBe(true);
+    await request(http).get(`/api/v1/platform/shop-stores/${storeId}/editor`).set(auth(token)).expect(403);
   });
 
   describe('Google', () => {
