@@ -57,6 +57,14 @@ export class CreateStoreDto {
   @Matches(HEX)
   color?: string;
 
+  /**
+   * طلب بباقة مدفوعة: المتجر يُحجز بانتظار تفعيل الفريق، ومعه فاتورتا الباقة والقالب.
+   * بلا `plan` يُنشأ متجرًا مجانيًا يعمل فورًا.
+   */
+  @IsOptional() @IsIn(['plus', 'pro']) plan?: 'plus' | 'pro';
+  @IsOptional() @IsIn([1, 12]) months?: 1 | 12;
+  @IsOptional() @IsString() @MaxLength(20) template?: string;
+
   @IsOptional()
   @Matches(HEX)
   colorDeep?: string;

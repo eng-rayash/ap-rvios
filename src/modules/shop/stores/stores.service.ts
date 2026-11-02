@@ -17,6 +17,7 @@ import { STORE_TEMPLATES, effectiveTemplate, isTemplate, templateCost } from '..
 import { domainProblem, normalizeDomain } from '../domain.util';
 import { ShopStoreAccessService } from '../shop-store-access.service';
 import { StoreImagesGc } from '../../uploads/store-images-gc.service';
+import { StorefrontCache } from '../public/storefront-cache.service';
 import {
   COUNTRIES,
   DEFAULT_COUNTRY,
@@ -88,6 +89,7 @@ export class StoresService {
     private readonly access: ShopStoreAccessService,
     private readonly subs: StoreSubscriptionsService,
     private readonly gc: StoreImagesGc,
+    private readonly cache: StorefrontCache,
   ) {}
 
   async list(ctx: TenantContext) {
@@ -168,7 +170,7 @@ export class StoresService {
     return w;
   }
 
-  async create(ctx: TenantContext, dto: CreateStoreDto) {
+  async create(ctx: TenantContext, dto: CreateStoreDto, opts: { pending?: boolean } = {}) {
     const db = this.prisma.forTenant(ctx.companyId);
 
     // الخانات: التاجر يبدأ بواحدة، والإضافية تُشترى (برو)
@@ -205,6 +207,8 @@ export class StoresService {
           country,
           ...(dto.color ? { color: dto.color } : {}),
           ...(dto.colorDeep ? { colorDeep: dto.colorDeep } : {}),
+          // الطلب يحفظ القالب المطلوب: يعمل حين تتفعّل باقته أو تُسدَّد فاتورته
+          ...(opts.pending ? { status: StoreStatus.Pending, ...(dto.template && isTemplate(dto.template) ? { template: dto.template } : {}) } : {}),
         }),
       });
     } catch (err) {
@@ -353,16 +357,21 @@ export class StoresService {
     });
     // شعار أو غلاف استُبدل — يُحذف القديم من التخزين لاحقًا
     if (dto.logo !== undefined || dto.banner !== undefined || dto.showcase !== undefined) this.gc.schedule(store.id);
+    this.cache.purge(store.slug, newSlug);
     return { store: storeView(updated, plan) };
   }
 
   /** حذف متجر واحد — لا المتجر الوحيد (احذف الحساب بدلًا من ذلك). */
-  async remove(ctx: TenantContext, storeId: string) {
+  /**
+   * حذف المتجر نهائيًا. المتجر الوحيد يُحذف بتأكيد صريح برابطه (`confirm`) — كي لا يُفقد
+   * متجر عامل بنقرة واحدة.
+   */
+  async remove(ctx: TenantContext, storeId: string, confirm?: string) {
     const { store } = await this.access.require(ctx, storeId);
     const db = this.prisma.forTenant(ctx.companyId);
-    if ((await db.shopStore.count()) <= 1) {
+    if ((await db.shopStore.count()) <= 1 && confirm !== store.slug) {
       throw new ConflictException({
-        message: 'لا يمكن حذف متجرك الوحيد بهذا المسار',
+        message: 'لحذف متجرك الوحيد اكتب رابطه للتأكيد',
         code: 'LAST_STORE',
       });
     }
@@ -371,6 +380,18 @@ export class StoresService {
     await this.subs.remove(ctx.companyId, store.id);
     // صور المتجر تُحذف من التخزين معه — عدا الإيصالات (سجلّ مالي)
     this.gc.purge(store.id);
+    this.cache.purge(store.slug);
+    return { ok: true };
+  }
+
+  /** فريق المنصة: حذف متجر (أو طلب مرفوض) بكل ما فيه */
+  async platformDelete(storeId: string) {
+    const store = await this.prisma.shopStore.findUnique({ where: { id: storeId } });
+    if (!store) throw new NotFoundException('المتجر غير موجود');
+    await this.prisma.shopStore.delete({ where: { id: storeId } });
+    await this.subs.remove(store.companyId, store.id);
+    this.gc.purge(store.id);
+    this.cache.purge(store.slug);
     return { ok: true };
   }
 
@@ -393,15 +414,23 @@ export class StoresService {
   async platformSetStatus(storeId: string, suspended: boolean) {
     const store = await this.prisma.shopStore.findUnique({ where: { id: storeId } });
     if (!store) throw new NotFoundException('المتجر غير موجود');
-    return this.prisma.shopStore.update({
+    if (store.status === StoreStatus.Pending) {
+      throw new BadRequestException('هذا طلب بانتظار التفعيل — فعّله من «طلبات المتاجر»');
+    }
+    const updated = await this.prisma.shopStore.update({
       where: { id: storeId },
       data: { status: suspended ? StoreStatus.Suspended : StoreStatus.Active },
     });
+    // صفحة «غير موجود» المخزّنة أثناء التعليق لا تبقى بعد إعادة التفعيل
+    this.cache.purge(store.slug);
+    return updated;
   }
 
   async platformSetVerified(storeId: string, verified: boolean) {
     const store = await this.prisma.shopStore.findUnique({ where: { id: storeId } });
     if (!store) throw new NotFoundException('المتجر غير موجود');
-    return this.prisma.shopStore.update({ where: { id: storeId }, data: { verified } });
+    const updated = await this.prisma.shopStore.update({ where: { id: storeId }, data: { verified } });
+    this.cache.purge(store.slug);
+    return updated;
   }
 }

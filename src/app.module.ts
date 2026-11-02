@@ -55,6 +55,9 @@ import { PublicRateLimit } from './modules/shop/public/rate-limit';
 import { ShopStoreAccessService } from './modules/shop/shop-store-access.service';
 import { PlatformStoresController, StoresController } from './modules/shop/stores/stores.controller';
 import { StoreAppearanceService } from './modules/shop/stores/store-appearance.service';
+import { StoreRequestsService } from './modules/shop/stores/store-requests.service';
+import { StorefrontCache } from './modules/shop/public/storefront-cache.service';
+import { PlatformUsersController } from './modules/platform-admin/platform-users.controller';
 import { StoresService } from './modules/shop/stores/stores.service';
 import { PlatformSettingsService } from './modules/shop-billing/platform-settings.service';
 import { PlatformShopBillingController } from './modules/shop-billing/platform-shop-billing.controller';
@@ -117,6 +120,7 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     }),
   ],
   controllers: [
+    PlatformUsersController,
     RootController,
     HealthController,
     AuthController,
@@ -182,6 +186,8 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     ShopStoreAccessService,
     StoresService,
     StoreAppearanceService,
+    StoreRequestsService,
+    StorefrontCache,
     CatalogService,
     OrdersService,
     ZonesService,

@@ -56,6 +56,8 @@ export class ShopPublicService {
     if (store.status === StoreStatus.Suspended) {
       throw new GoneException('هذا المتجر موقوف مؤقتًا');
     }
+    // طلب لم يفعّله الفريق بعد: لا متجر للزوّار
+    if (store.status === StoreStatus.Pending) throw new NotFoundException('لا يوجد متجر بهذا الرابط');
     const plan = await this.access.planOf(store.companyId, store.id);
     return { kind: 'ok', store, plan };
   }
@@ -67,7 +69,7 @@ export class ShopPublicService {
   async slugForDomain(host: string): Promise<{ slug: string }> {
     const domain = normalizeDomain(host);
     const store = domain ? await this.prisma.shopStore.findUnique({ where: { customDomain: domain } }) : null;
-    if (!store || store.status === StoreStatus.Suspended) throw new NotFoundException('لا متجر على هذا النطاق');
+    if (!store || store.status !== StoreStatus.Active) throw new NotFoundException('لا متجر على هذا النطاق');
     const plan = await this.access.planOf(store.companyId, store.id);
     if (plan === 'basic') throw new NotFoundException('لا متجر على هذا النطاق');
     return { slug: store.slug };

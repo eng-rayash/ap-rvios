@@ -49,6 +49,8 @@ docker build -t azm-api .
 | `NODE_ENV` | ✅ | `production` (مضبوط في الصورة) |
 | `DATABASE_URL` | ✅ | رابط القاعدة من الخطوة ١ |
 | `JWT_SECRET` | ✅ | سرّ جديد، ٣٢ حرفًا فأكثر: `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` |
+| `STOREFRONT_URL` | | `https://store.rvios.com` — تُطلب منه إعادة بناء صفحة المتجر فور تعليقه أو تفعيله أو تعديله |
+| `REVALIDATE_SECRET` | | سرّ عشوائي طويل — نفسه في منصة المتاجر (rvios-next) |
 | `RESEND_API_KEY` | | مفتاح Resend للبريد الصادر |
 | `EMAIL_FROM` | | المرسل من نطاق موثَّق في Resend: `RVIOS <no-reply@rvios.com>` |
 | `EMAIL_REPLY_TO` | | عنوان الردود: `rviostech@gmail.com` |

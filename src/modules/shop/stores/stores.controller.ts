@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   ParseUUIDPipe,
@@ -18,6 +19,7 @@ import {
   UserRole,
 } from '../../../common/tenant/tenant-context';
 import { StoreAppearanceService } from './store-appearance.service';
+import { StoreRequestsService } from './store-requests.service';
 import { CreateStoreDto, SaveAppearanceDto, SetStoreStatusDto, UpdateStoreDto } from './stores.dto';
 import { StoresService } from './stores.service';
 
@@ -27,6 +29,7 @@ export class StoresController {
   constructor(
     private readonly stores: StoresService,
     private readonly appearance: StoreAppearanceService,
+    private readonly requests: StoreRequestsService,
   ) {}
 
   @Get()
@@ -58,7 +61,8 @@ export class StoresController {
   @RequireRole(UserRole.Admin)
   @Post()
   create(@Tenant() ctx: TenantContext, @Body() dto: CreateStoreDto) {
-    return this.stores.create(ctx, dto);
+    // باقة مدفوعة = طلب يفعّله فريق المنصة بعد الدفع
+    return dto.plan ? this.requests.create(ctx, dto) : this.stores.create(ctx, dto);
   }
 
   @RequireRole(UserRole.Admin)
@@ -87,8 +91,9 @@ export class StoresController {
   remove(
     @Tenant() ctx: TenantContext,
     @Param('storeId', ParseUUIDPipe) storeId: string,
+    @Query('confirm') confirm?: string,
   ) {
-    return this.stores.remove(ctx, storeId);
+    return this.stores.remove(ctx, storeId, confirm);
   }
 }
 
@@ -99,7 +104,39 @@ export class PlatformStoresController {
   constructor(
     private readonly stores: StoresService,
     private readonly appearance: StoreAppearanceService,
+    private readonly requests: StoreRequestsService,
   ) {}
+
+  /** طلبات المتاجر بالباقات المدفوعة — بانتظار الدفع والتفعيل */
+  @Get('requests')
+  listRequests(@Platform() _ctx: PlatformContext) {
+    return this.requests.list();
+  }
+
+  @Post(':storeId/activate')
+  activate(
+    @Platform() ctx: PlatformContext,
+    @Param('storeId', ParseUUIDPipe) storeId: string,
+    @Body() body: { paymentReference?: string },
+  ) {
+    return this.requests.activate(storeId, ctx, typeof body?.paymentReference === 'string' ? body.paymentReference.slice(0, 200) : undefined);
+  }
+
+  @Post(':storeId/reject')
+  reject(
+    @Platform() ctx: PlatformContext,
+    @Param('storeId', ParseUUIDPipe) storeId: string,
+    @Body() body: { reason?: string },
+  ) {
+    return this.requests.reject(storeId, ctx, typeof body?.reason === 'string' ? body.reason.slice(0, 300) : undefined);
+  }
+
+  /** حذف متجر نهائيًا — للمدير العام وحده */
+  @Delete(':storeId')
+  remove(@Platform() ctx: PlatformContext, @Param('storeId', ParseUUIDPipe) storeId: string) {
+    if (ctx.platformRole !== 2) throw new ForbiddenException('حذف المتاجر للمدير العام وحده');
+    return this.stores.platformDelete(storeId);
+  }
 
   @Get()
   list(@Platform() _ctx: PlatformContext, @Query('q') q?: string) {

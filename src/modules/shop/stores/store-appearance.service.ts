@@ -3,6 +3,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { TenantPrismaService } from '../../../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../../../common/tenant/tenant-context';
 import { CatalogService } from '../catalog/catalog.service';
+import { StorefrontCache } from '../public/storefront-cache.service';
 import { ShopStoreAccessService } from '../shop-store-access.service';
 import { SaveAppearanceDto } from './stores.dto';
 import { StoresService, storeView } from './stores.service';
@@ -25,6 +26,7 @@ export class StoreAppearanceService {
     private readonly access: ShopStoreAccessService,
     private readonly stores: StoresService,
     private readonly catalog: CatalogService,
+    private readonly cache: StorefrontCache,
   ) {}
 
   async save(ctx: TenantContext, storeId: string, dto: SaveAppearanceDto) {
@@ -72,6 +74,7 @@ export class StoreAppearanceService {
       where: { id: storeId },
       data: { appearance: { copy, hidden }, appearanceLockedUntil: until },
     });
+    this.cache.purge(saved.slug);
     return { store: storeView(saved, plan) };
   }
 
