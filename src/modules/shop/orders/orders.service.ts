@@ -1,3 +1,4 @@
+import { StoreEmails } from '../../notify/store-emails.service';
 import {
   BadRequestException,
   ConflictException,
@@ -60,6 +61,7 @@ export class OrdersService {
     private readonly access: ShopStoreAccessService,
     private readonly webhooks: WebhooksService,
     private readonly merchant: MerchantNotifier,
+    private readonly emails: StoreEmails,
   ) {}
 
   /** يُطلق حدث خطاف بعد اكتمال العملية — لا ينتظر ولا يرمي. */
@@ -88,6 +90,7 @@ export class OrdersService {
         // بعد التزام المعاملة: لا حدث لطلب قد يُلغى بتراجعها
         this.notify(store, 'order.created', placed.order);
         void this.merchant.newOrder(store, placed.order);
+        void this.emails.newOrder(store, placed.order);
         return placed;
       } catch (err) {
         // تصادم مرجع نادر (٣٢^٥) — نعيد بمرجع جديد بدل فشل الطلب

@@ -6,6 +6,7 @@ import { PlatformInvoicesService } from '../../platform-admin/platform-invoices.
 import { InvoiceKind, InvoiceStatus } from '../../shop-billing/shop-billing.constants';
 import { ShopInvoicesService } from '../../shop-billing/shop-invoices.service';
 import { StorefrontCache } from '../public/storefront-cache.service';
+import { StoreEmails } from '../../notify/store-emails.service';
 import { StoreStatus } from '../shop.constants';
 import { CreateStoreDto } from './stores.dto';
 import { StoresService } from './stores.service';
@@ -25,6 +26,7 @@ export class StoreRequestsService {
     private readonly invoices: ShopInvoicesService,
     private readonly platformInvoices: PlatformInvoicesService,
     private readonly cache: StorefrontCache,
+    private readonly emails: StoreEmails,
   ) {}
 
   async create(ctx: TenantContext, dto: CreateStoreDto) {
@@ -47,6 +49,8 @@ export class StoreRequestsService {
       await this.stores.platformDelete(store.id);
       throw e;
     }
+    const open = await this.prisma.platformInvoice.findMany({ where: { storeRef: store.id, status: { in: OPEN }, deletedAt: null }, select: { amount: true, currency: true } });
+    void this.emails.storeRequested({ ...store, companyId: ctx.companyId }, open.reduce((a, i) => a + Number(i.amount), 0), open[0]?.currency ?? 'USD');
     return this.stores.get(ctx, store.id);
   }
 
@@ -96,6 +100,8 @@ export class StoreRequestsService {
     for (const inv of ordered) await this.platformInvoices.review(inv.id, ctx, { decision: 'paid', paymentReference });
     await this.prisma.shopStore.update({ where: { id: storeId }, data: { status: StoreStatus.Active } });
     this.cache.purge(store.slug);
+    const base = (process.env.STOREFRONT_URL || 'https://store.rvios.com').replace(/\/+$/, '');
+    void this.emails.storeActivated(store, `${base}/s/${store.slug}`);
     return { ok: true, slug: store.slug };
   }
 

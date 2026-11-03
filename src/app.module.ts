@@ -33,6 +33,7 @@ import { ApiKeysController } from './modules/developers/api-keys.controller';
 import { ApiKeysService } from './modules/developers/api-keys.service';
 import { WebhooksController } from './modules/webhooks/webhooks.controller';
 import { MerchantNotifier } from './modules/notify/merchant-notifier.service';
+import { StoreEmails } from './modules/notify/store-emails.service';
 import { SubscriptionReminders } from './modules/notify/subscription-reminders.service';
 import { WebhooksService } from './modules/webhooks/webhooks.service';
 import { WorkspaceController } from './modules/workspace/workspace.controller';
@@ -166,6 +167,7 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     ApiKeysService,
     WebhooksService,
     MerchantNotifier,
+    StoreEmails,
     SubscriptionReminders,
     ActivityService,
     NotificationsService,
