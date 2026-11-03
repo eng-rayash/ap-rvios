@@ -16,6 +16,11 @@ import { AdvanceOrderDto, OrderPaymentDto, ZoneDto } from './orders.dto';
 import { OrdersService } from './orders.service';
 import { ZonesService } from './zones.service';
 
+function statusOf(status?: string) {
+  const s = status !== undefined && status !== '' ? Number(status) : undefined;
+  return Number.isInteger(s) ? s : undefined;
+}
+
 /** طلبات المتجر وعملاؤه ومناطق توصيله — لوحة التاجر. */
 @Controller('shop/stores/:storeId')
 export class OrdersController {
@@ -30,13 +35,26 @@ export class OrdersController {
     @Param('storeId', ParseUUIDPipe) storeId: string,
     @Query('status') status?: string,
     @Query('page') page?: string,
+    @Query('q') q?: string,
   ) {
-    const s = status !== undefined && status !== '' ? Number(status) : undefined;
     const p = page ? Number(page) : undefined;
     return this.orders.list(ctx, storeId, {
-      status: Number.isInteger(s) ? s : undefined,
+      status: statusOf(status),
       page: Number.isInteger(p) ? p : undefined,
+      q: typeof q === 'string' ? q : undefined,
     });
+  }
+
+  /** بيانات العملاء دفعة واحدة: للمدير فأعلى كالدفع */
+  @RequireRole(UserRole.DeptManager)
+  @Get('orders/export')
+  export(
+    @Tenant() ctx: TenantContext,
+    @Param('storeId', ParseUUIDPipe) storeId: string,
+    @Query('status') status?: string,
+    @Query('q') q?: string,
+  ) {
+    return this.orders.export(ctx, storeId, { status: statusOf(status), q: typeof q === 'string' ? q : undefined });
   }
 
   @Get('orders/:id')

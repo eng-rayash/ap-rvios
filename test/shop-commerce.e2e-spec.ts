@@ -326,6 +326,23 @@ describe('تجارة المتاجر', () => {
         .set(auth(a.token)).send({ status: 1 }).expect(409); // ملغى ← مؤكد ممنوع
     });
 
+    it('البحث برقم الطلب أو الاسم أو الجوال بأي صيغة، والتصدير بالمرشّح نفسه', async () => {
+      const byRef = await get(`/shop/stores/${storeId}/orders?q=${ref.toLowerCase()}`, a.token).expect(200);
+      expect(byRef.body.orders.map((o: { ref: string }) => o.ref)).toEqual([ref]);
+      const byPhone = await get(`/shop/stores/${storeId}/orders?q=${encodeURIComponent('+967 777000111')}`, a.token).expect(200);
+      expect(byPhone.body.total).toBe(2);
+      const byName = await get(`/shop/stores/${storeId}/orders?q=${encodeURIComponent('عميل')}&status=3`, a.token).expect(200);
+      expect(byName.body.orders.map((o: { ref: string }) => o.ref)).toEqual([ref]);
+      expect(byName.body.counts['3']).toBe(1);
+      const none = await get(`/shop/stores/${storeId}/orders?q=zzzz`, a.token).expect(200);
+      expect(none.body.total).toBe(0);
+
+      const ex = await get(`/shop/stores/${storeId}/orders/export?q=777000111`, a.token).expect(200);
+      expect(ex.body.orders).toHaveLength(2);
+      expect(ex.body.orders[0].items[0]).toEqual({ name: 'عود ملكي', qty: 1 });
+      expect(ex.body.truncated).toBe(false);
+    });
+
     it('الطلب المتابَع برقمه، وإيصال الدفع عند الاستلام يُرفض', async () => {
       const t = await request(http).get(`/api/v1/shop/storefront/${slug}/orders/${ref}`).expect(200);
       expect(t.body.ref).toBe(ref);

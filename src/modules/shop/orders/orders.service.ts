@@ -26,6 +26,7 @@ import { waLink } from './order-message';
 
 const REF_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // بلا محارف ملتبسة
 export const ORDERS_PER_PAGE = 50;
+export const ORDERS_EXPORT_MAX = 5000;
 
 function makeRef(): string {
   let out = '';
@@ -306,15 +307,12 @@ export class OrdersService {
   async list(
     ctx: TenantContext,
     storeId: string,
-    { status, page }: { status?: number; page?: number },
+    { status, page, q }: { status?: number; page?: number; q?: string },
   ) {
     const { store } = await this.access.require(ctx, storeId);
     const db = this.prisma.forTenant(ctx.companyId);
 
-    const where: Prisma.ShopOrderWhereInput = {
-      storeId,
-      ...(status !== undefined && status in ORDER_NEXT ? { status } : {}),
-    };
+    const where = this.filter(storeId, status, q);
     const total = await db.shopOrder.count({ where });
     const pages = Math.max(1, Math.ceil(total / ORDERS_PER_PAGE));
     const current = Math.min(Math.max(1, page ?? 1), pages);
@@ -327,7 +325,8 @@ export class OrdersService {
         skip: (current - 1) * ORDERS_PER_PAGE,
         include: { items: true },
       }),
-      db.shopOrder.groupBy({ by: ['status'], where: { storeId }, _count: { _all: true } }),
+      // أعداد التبويبات تتبع البحث: «مؤكد (٢)» تعني من نتائج البحث
+      db.shopOrder.groupBy({ by: ['status'], where: this.filter(storeId, undefined, q), _count: { _all: true } }),
     ]);
 
     const counts: Record<string, number> = { 0: 0, 1: 0, 2: 0, 3: 0 };
@@ -340,6 +339,49 @@ export class OrdersService {
       total,
       perPage: ORDERS_PER_PAGE,
       counts,
+    };
+  }
+
+  /** الحالة والبحث برقم الطلب أو اسم العميل أو جزء من جواله (بأي صيغة كتبها) */
+  private filter(storeId: string, status?: number, q?: string): Prisma.ShopOrderWhereInput {
+    const term = q?.trim().slice(0, 60) ?? '';
+    const digits = term.replace(/\D/g, '').replace(/^0+/, '');
+    const phone = digits.length >= 3
+      ? [{ custPhone: { contains: digits } }, { customer: { phone: { contains: digits } } }]
+      : [];
+    return {
+      storeId,
+      ...(status !== undefined && status in ORDER_NEXT ? { status } : {}),
+      ...(term
+        ? {
+            OR: [
+              { ref: { contains: term, mode: 'insensitive' as const } },
+              { custName: { contains: term, mode: 'insensitive' as const } },
+              ...phone,
+            ],
+          }
+        : {}),
+    };
+  }
+
+  /** تصدير السجل بالمرشّح نفسه — حدّ يكفي متجرًا كبيرًا ولا يُثقل الخادم */
+  async export(ctx: TenantContext, storeId: string, { status, q }: { status?: number; q?: string }) {
+    await this.access.require(ctx, storeId);
+    const db = this.prisma.forTenant(ctx.companyId);
+    const rows = await db.shopOrder.findMany({
+      where: this.filter(storeId, status, q),
+      orderBy: { createdAt: 'desc' },
+      take: ORDERS_EXPORT_MAX,
+      include: { items: true },
+    });
+    return {
+      orders: rows.map((o) => ({
+        ref: o.ref, createdAt: o.createdAt, status: o.status, payMethod: o.payMethod, payStatus: o.payStatus,
+        custName: o.custName, custPhone: o.custPhone, custAddress: o.custAddress, zoneName: o.zoneName, note: o.note,
+        subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total,
+        items: o.items.map((i) => ({ name: i.name, qty: i.qty })),
+      })),
+      truncated: rows.length === ORDERS_EXPORT_MAX,
     };
   }
 
