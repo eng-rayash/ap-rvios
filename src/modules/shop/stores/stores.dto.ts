@@ -131,6 +131,10 @@ export class SaveAppearanceDto {
   @IsOptional() @IsArray() @ArrayMaxSize(80) @IsString({ each: true }) hidden?: string[];
   /** صورة من صور القالب (بمعرّفها) ← رابط صورة التاجر */
   @IsOptional() @IsObject() images?: Record<string, string>;
+  /** خطّا الواجهة: `display` للعناوين و`body` للنصوص — معرّفات من قائمة منصة المتاجر */
+  @IsOptional() @IsObject() fonts?: Record<string, string>;
+  /** حسابات التواصل (اسم المستخدم أو الرابط) ومكان عرضها `placement` */
+  @IsOptional() @IsObject() social?: Record<string, string>;
   @IsOptional() @IsArray() @ArrayMaxSize(600) @IsUUID('all', { each: true }) deleteProducts?: string[];
   @IsOptional() @IsArray() @ArrayMaxSize(200) @ValidateNested({ each: true }) @Type(() => AppearanceProductDto) products?: AppearanceProductDto[];
 }

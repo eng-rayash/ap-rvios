@@ -100,7 +100,7 @@ describe('شكل المتجر والدخول بحساب Google', () => {
     const c = await request(http).get(`/api/v1/shop/storefront/${slug}/catalogue`).expect(200);
     expect(c.body.store.name).toBe('الاسم الجديد');
     expect(c.body.store.banner).toBe('https://cdn.test/hero.webp');
-    expect(c.body.store.appearance).toEqual({ copy: { h1: 'عنوان جديد', storyTxt: 'قصتنا', unknown: 'يُهمل' }, hidden: ['sub', 'storyImg', 'unknown'], images: {} });
+    expect(c.body.store.appearance).toEqual({ copy: { h1: 'عنوان جديد', storyTxt: 'قصتنا', unknown: 'يُهمل' }, hidden: ['sub', 'storyImg', 'unknown'], images: {}, fonts: {}, social: {} });
     expect(c.body.store.appearanceLockedUntil).toBeUndefined();
     expect(c.body.products.map((p: { name: string }) => p.name)).toEqual(['عطر']);
     expect(c.body.products[0].oldPrice).toBe(300);
@@ -127,10 +127,14 @@ describe('شكل المتجر والدخول بحساب Google', () => {
       copy: { heroTitle: 'عنوان قالب مدفوع', 'bad key': 'يُهمل' },
       images: { '1442512595331-e89e73853f31': 'https://cdn.test/hero2.webp', other: 'javascript:alert(1)' },
       hidden: ['img:1511537190424-bbbab87ac5eb'],
+      fonts: { display: 'milan', body: 'BAD FONT' },
+      social: { instagram: '@rvios.store', facebook: 'https://facebook.com/rvios', tiktok: 'has space', myspace: 'x', placement: 'both' },
     }).expect(200);
     const c = await request(http).get(`/api/v1/shop/storefront/${slug}/catalogue`).expect(200);
     expect(c.body.store.appearance.copy).toEqual({ heroTitle: 'عنوان قالب مدفوع' });
     expect(c.body.store.appearance.images).toEqual({ '1442512595331-e89e73853f31': 'https://cdn.test/hero2.webp' });
+    expect(c.body.store.appearance.fonts).toEqual({ display: 'milan' });
+    expect(c.body.store.appearance.social).toEqual({ instagram: 'rvios.store', facebook: 'https://facebook.com/rvios', placement: 'both' });
 
     // مقفول على التاجر الآن — والفريق يعدّل ولا يمدّد القفل
     await request(http).put(url()).set(auth(token)).send({ copy: { h1: 'تاجر' } }).expect(409);

@@ -19,6 +19,12 @@ const HIDDEN_KEY = /^(img:)?[\w./:@-]{1,160}$/;
 /** صورة قالب ← صورة التاجر: رابط https أو مسار محلي فقط */
 const IMAGE_URL = /^(https:\/\/|\/)[^\s"'<>]{1,600}$/;
 const MAX_ENTRIES = 80;
+/** معرّف خط من قائمة منصة المتاجر — الخط نفسه يُحمَّل هناك، فمعرّف مجهول يعود لخط القالب */
+const FONT_ID = /^[a-z]{2,20}$/;
+const NETWORKS = new Set(['instagram', 'facebook', 'tiktok', 'snapchat', 'x', 'youtube', 'telegram', 'whatsapp']);
+const PLACEMENTS = new Set(['info', 'footer', 'both']);
+/** اسم مستخدم أو رابط https — بلا مسافات ولا علامات تكسر الرابط */
+const SOCIAL_VALUE = /^(https:\/\/[^\s"'<>]{4,300}|@?[\w.\-+]{1,80})$/;
 /** بعد كل حفظ من التاجر يُقفل التعديل أسبوعًا، إلا أن يفتحه فريق RVIOS */
 const LOCK_MS = 7 * 24 * 60 * 60_000;
 
@@ -58,6 +64,15 @@ export class StoreAppearanceService {
         .map(([k, v]) => [k, v.trim()]),
     );
     const hidden = [...new Set(dto.hidden ?? [])].filter((k) => HIDDEN_KEY.test(k)).slice(0, MAX_ENTRIES);
+    const fonts = Object.fromEntries(
+      (['display', 'body'] as const).flatMap((k) => (typeof dto.fonts?.[k] === 'string' && FONT_ID.test(dto.fonts[k]) ? [[k, dto.fonts[k]]] : [])),
+    );
+    const social: Record<string, string> = Object.fromEntries(
+      Object.entries(dto.social ?? {})
+        .filter(([k, v]) => NETWORKS.has(k) && typeof v === 'string' && SOCIAL_VALUE.test(v.trim()))
+        .map(([k, v]) => [k, v.trim().replace(/^@/, '')]),
+    );
+    if (typeof dto.social?.placement === 'string' && PLACEMENTS.has(dto.social.placement)) social.placement = dto.social.placement;
 
     for (const id of dto.deleteProducts ?? []) {
       await this.catalog.removeProduct(ctx, storeId, id).catch((e: unknown) => {
@@ -80,7 +95,7 @@ export class StoreAppearanceService {
     const saved = await this.prisma.forTenant(ctx.companyId).shopStore.update({
       where: { id: storeId },
       data: {
-        appearance: { copy, hidden, images },
+        appearance: { copy, hidden, images, fonts, social },
         ...(asTeam ? {} : { appearanceLockedUntil: new Date(Date.now() + LOCK_MS) }),
       },
     });
