@@ -11,6 +11,7 @@ import { AiChatDto, AiGenerateDto } from './ai.dto';
 import { TITLE_PROMPT, TOOLS, replyLanguage, systemPrompt } from './ai.prompts';
 import { redactSensitive } from './ai.sanitize';
 import { AiUsageService } from './ai-usage.service';
+import { KnowledgeService } from './knowledge/kb.service';
 import { AI_ERROR_TEXT, AI_PROVIDER, AiProvider, AiProviderError, AiTurn, AiUsageInfo } from './providers/ai-provider';
 
 const currencyLabel = (code: string) => {
@@ -54,6 +55,7 @@ export class AiService {
     private readonly access: ShopStoreAccessService,
     private readonly context: AiContextService,
     private readonly usage: AiUsageService,
+    private readonly knowledge: KnowledgeService,
     @Inject(AI_PROVIDER) private readonly provider: AiProvider,
   ) {}
 
@@ -177,7 +179,11 @@ export class AiService {
         this.context.build(ctx, access, feature === 'insights'),
         this.history(ctx, conversation.id),
       ]);
-      const system = systemPrompt({ storeData, insights: feature === 'insights', currency: currencyLabel(access.store.country), lang: replyLanguage(turns.filter((t) => t.role === 'user').at(-1)?.text ?? '') });
+      const lastUser = turns.filter((t) => t.role === 'user').at(-1)?.text ?? '';
+      // المعرفة حسب السؤال الأخير (ومعه ما قبله قليلًا: «وكم سعره؟» تتبع سؤالًا سابقًا)
+      const query = turns.filter((t) => t.role === 'user').slice(-2).map((t) => t.text).join(' ');
+      const knowledge = await this.knowledge.forQuestion(query, 'merchant', { k: 4 });
+      const system = systemPrompt({ storeData, insights: feature === 'insights', currency: currencyLabel(access.store.country), lang: replyLanguage(lastUser), knowledge });
       for await (const chunk of this.provider.stream({ system, turns, signal })) {
         if (chunk.type === 'text') {
           text += chunk.text;
@@ -297,9 +303,17 @@ The merchant wrote in English: write the title in English.` : TITLE_PROMPT;
     const quota = await this.usage.assertAllowed(ctx, storeId, access.plan);
     const tool = TOOLS[dto.tool];
     const country = countryOf(access.store.country);
+    const s = access.store;
+    // السياسات تُكتب من إعداد المتجر الحقيقي (مدنه ورسومه وطرق دفعه) لا من افتراضات
+    const policyFacts = dto.tool === 'policy'
+      ? {
+          city: s.city, payMethods: s.payMethods, deliveryFee: s.deliveryFee, deliveryFreeOver: s.deliveryFreeOver, deliveryNote: s.deliveryNote,
+          zones: await this.prisma.forTenant(ctx.companyId).shopDeliveryZone.findMany({ where: { storeId: s.id }, take: 15, select: { name: true, fee: true } }),
+        }
+      : {};
     const payload = JSON.stringify({
       language: dto.language,
-      store: { name: access.store.name, country: country.name, currency: country.currency },
+      store: { name: s.name, country: country.name, currency: country.currency, ...policyFacts },
       ...(dto.tool === 'marketing' ? { count: 3 } : {}),
       ...JSON.parse(JSON.stringify(input, (_k, v) => (typeof v === 'string' ? redactSensitive(v) : v))),
     });

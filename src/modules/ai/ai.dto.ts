@@ -73,9 +73,23 @@ export class AiSeoInput {
   @IsOptional() @IsString() @MaxLength(80) city?: string;
 }
 
+export class AiReplyInput {
+  /** رسالة العميل أو نص تقييمه كما وصل */
+  @IsString() @MinLength(2) @MaxLength(2000) message!: string;
+  @IsOptional() @IsIn(['message', 'review']) kind?: 'message' | 'review';
+  @IsOptional() @IsInt() @Min(1) @Max(5) rating?: number;
+  /** ما يعرفه التاجر عن الموقف وما يستطيع تقديمه */
+  @IsOptional() @IsString() @MaxLength(1000) context?: string;
+}
+
+export class AiPolicyInput {
+  @IsIn(['exchange', 'shipping', 'privacy', 'about', 'faq', 'terms']) kind!: string;
+  @IsOptional() @IsString() @MaxLength(2000) details?: string;
+}
+
 export class AiGenerateDto {
-  @IsIn(['product', 'marketing', 'seo'])
-  tool!: 'product' | 'marketing' | 'seo';
+  @IsIn(['product', 'marketing', 'seo', 'reply', 'policy'])
+  tool!: 'product' | 'marketing' | 'seo' | 'reply' | 'policy';
 
   @IsIn(LANG)
   language!: 'ar' | 'en';
@@ -83,4 +97,6 @@ export class AiGenerateDto {
   @IsOptional() @ValidateNested() @Type(() => AiProductInput) product?: AiProductInput;
   @IsOptional() @ValidateNested() @Type(() => AiMarketingInput) marketing?: AiMarketingInput;
   @IsOptional() @ValidateNested() @Type(() => AiSeoInput) seo?: AiSeoInput;
+  @IsOptional() @ValidateNested() @Type(() => AiReplyInput) reply?: AiReplyInput;
+  @IsOptional() @ValidateNested() @Type(() => AiPolicyInput) policy?: AiPolicyInput;
 }

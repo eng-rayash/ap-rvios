@@ -39,6 +39,10 @@ import { AiController } from './modules/ai/ai.controller';
 import { aiConfig } from './modules/ai/ai.config';
 import { AiService } from './modules/ai/ai.service';
 import { AiUsageService } from './modules/ai/ai-usage.service';
+import { KnowledgeService } from './modules/ai/knowledge/kb.service';
+import { AiPublicController } from './modules/ai/ai-public.controller';
+import { AiAdminController } from './modules/ai/ai-admin.controller';
+import { AiPublicService } from './modules/ai/ai-public.service';
 import { AI_PROVIDER } from './modules/ai/providers/ai-provider';
 import { GeminiProvider } from './modules/ai/providers/gemini.provider';
 import { SubscriptionReminders } from './modules/notify/subscription-reminders.service';
@@ -129,6 +133,8 @@ import { SettingsService } from './modules/cms/settings/settings.service';
   ],
   controllers: [
     AiController,
+    AiPublicController,
+    AiAdminController,
     PlatformUsersController,
     RootController,
     HealthController,
@@ -179,6 +185,8 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     AiService,
     AiContextService,
     AiUsageService,
+    KnowledgeService,
+    AiPublicService,
     // المزوّد خلف رمز: الاختبارات تستبدله، ومزوّد آخر لاحقًا يُسجَّل هنا
     { provide: AI_PROVIDER, useFactory: () => new GeminiProvider(aiConfig()) },
     SubscriptionReminders,

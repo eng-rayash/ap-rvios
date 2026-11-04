@@ -57,6 +57,8 @@ docker build -t azm-api .
 | `GEMINI_API_KEY` | | مفتاح Google Gemini لمساعد التاجر RVIOS AI (من aistudio.google.com/apikey) — بدونه تظهر الميزة «غير مفعّلة» |
 | `GEMINI_MODELS` | | سلسلة نماذج بفواصل، الافتراضي `gemini-flash-lite-latest,gemini-flash-latest` |
 | `AI_LIMIT_BASIC` · `AI_LIMIT_PLUS` · `AI_LIMIT_PRO` | | حصّة الطلبات الشهرية لكل متجر حسب باقته (افتراضيًا 30 · 400 · 2000)، و0 يعطّلها |
+| `AI_PUBLIC_DAILY` · `AI_PUBLIC_PER_IP_DAY` | | مساعد الزوّار: أسئلة يومية للمنصة (1500) ولكل زائر (40)، و0 يطفئه |
+| `AI_PUBLIC_ORIGINS` | | أصول مساعد الزوّار، الافتراضي نطاقات rvios.com وstore.rvios.com |
 | `EMAIL_FROM` | | المرسل من نطاق موثَّق في Resend: `RVIOS <no-reply@rvios.com>` |
 | `EMAIL_REPLY_TO` | | عنوان الردود: `rviostech@gmail.com` |
 | `EMAIL_OTP_ENABLED` | | `1` = رمز بالبريد عند التسجيل والدخول — بعد توثيق النطاق فقط، وتأكد أن حسابات فريق المنصة ببريد حقيقي |

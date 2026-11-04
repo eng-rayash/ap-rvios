@@ -26,7 +26,7 @@ export class AiContextService {
   async build(ctx: TenantContext, access: StoreAccess, insights: boolean): Promise<string> {
     const { store, plan } = access;
     const db = this.prisma.forTenant(ctx.companyId);
-    const [products, categories, total, live, noDesc, noImage, outOfStock] = await Promise.all([
+    const [products, categories, total, live, noDesc, noImage, outOfStock, zones, pending, customers, reviews, recentReviews] = await Promise.all([
       db.shopProduct.findMany({
         where: { storeId: store.id },
         orderBy: [{ live: 'desc' }, { sort: 'asc' }, { createdAt: 'desc' }],
@@ -39,6 +39,12 @@ export class AiContextService {
       db.shopProduct.count({ where: { storeId: store.id, description: '' } }),
       db.shopProduct.count({ where: { storeId: store.id, image: '' } }),
       db.shopProduct.count({ where: { storeId: store.id, live: true, qty: { lte: 0 }, hasVariants: false } }),
+      db.shopDeliveryZone.findMany({ where: { storeId: store.id }, orderBy: { sort: 'asc' }, take: 15, select: { name: true, fee: true } }),
+      db.shopOrder.count({ where: { storeId: store.id, status: OrderStatus.Wait } }),
+      db.shopCustomer.count({ where: { storeId: store.id } }),
+      db.shopReview.aggregate({ where: { storeId: store.id, status: 1 }, _avg: { rating: true }, _count: { _all: true } }),
+      // نصوص آخر التقييمات بلا أسماء أصحابها — يكفي المساعد ما قيل لا من قاله
+      db.shopReview.findMany({ where: { storeId: store.id, status: 1 }, orderBy: { createdAt: 'desc' }, take: 5, select: { rating: true, body: true, reply: true } }),
     ]);
 
     const country = countryOf(store.country);
@@ -49,7 +55,16 @@ export class AiContextService {
       `# الكتالوج (الآن)`,
       `المنتجات: ${total} (منشور ${live}) · بلا وصف: ${noDesc} · بلا صورة: ${noImage} · نافدة المخزون: ${outOfStock}`,
       `التصنيفات: ${categories.length ? categories.map((c) => dataText(c.name, 40)).join('، ') : 'لا تصنيفات'}`,
+      `# الإعداد`,
+      `الوصف: ${dataText(store.tagline || store.about || '— لا وصف', 200)} · المدينة: ${dataText(store.city || '—', 40)} · ساعات العمل: ${dataText(store.hours || '—', 60)}`,
+      `طرق الدفع: ${store.payMethods.split(',').map((m) => PAY[m.trim()] ?? dataText(m, 20)).join('، ')}${store.payNote ? ' (تعليمات التحويل مضبوطة)' : ''}`,
+      `التوصيل: ${zones.length ? zones.map((z) => `${dataText(z.name, 30)} ${z.fee} ${cur}`).join('، ') : `بلا مناطق — رسوم عامة ${store.deliveryFee} ${cur}`}${store.deliveryFreeOver > 0 ? ` · مجاني فوق ${store.deliveryFreeOver} ${cur}` : ' · لا حد للتوصيل المجاني'}`,
+      `الآن: طلبات بانتظار التأكيد ${pending} · عملاء مسجلون ${customers} · تقييمات منشورة ${reviews._count._all}${reviews._avg.rating ? ` بمتوسط ${reviews._avg.rating.toFixed(1)} من ٥` : ''}`,
     ];
+    if (recentReviews.length) {
+      lines.push('آخر التقييمات (النجوم: النص | رد التاجر):');
+      for (const r of recentReviews) lines.push(`- ${r.rating}★: ${dataText(r.body, 160)}${r.reply ? ` | رد: ${dataText(r.reply, 80)}` : ' | بلا رد'}`);
+    }
     if (products.length) {
       lines.push(`أول ${products.length} منتج (الاسم | السعر | المخزون | التصنيف):`);
       for (const p of products) {

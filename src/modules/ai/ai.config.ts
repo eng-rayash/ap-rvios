@@ -14,7 +14,7 @@ const int = (v: string | undefined, fallback: number) => {
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : fallback;
 };
 
-export type AiFeature = 'chat' | 'insights' | 'product' | 'marketing' | 'seo' | 'title';
+export type AiFeature = 'chat' | 'insights' | 'product' | 'marketing' | 'seo' | 'reply' | 'policy' | 'title' | 'public';
 
 export function aiConfig(env: NodeJS.ProcessEnv = process.env) {
   return {

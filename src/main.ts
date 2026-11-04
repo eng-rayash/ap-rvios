@@ -32,10 +32,17 @@ async function bootstrap() {
   // عامة بلا جلسة أصلًا، فلا يحميها حصر الأصول بشيء.
   const allowed = originMatcher(process.env.CORS_ORIGINS ?? 'http://localhost:3001');
   const openPaths = ['/api/v1/shop/storefront/', '/api/v1/health'];
+  // مساعد الزوّار عام بلا جلسة لكنه يُكلِّف: يُسمح به لمواقع RVIOS وحدها لا لأي موقع يضمّنه
+  const aiPublic = originMatcher(
+    process.env.AI_PUBLIC_ORIGINS ??
+      'https://www.rvios.com,https://rvios.com,https://store.rvios.com,https://rvios.store,https://www.rvios.store,http://localhost:3020,http://localhost:3030',
+  );
   app.enableCors((req: { url?: string; headers: { origin?: string } }, cb) => {
     const origin = req.headers.origin;
-    const open = openPaths.some((p) => (req.url ?? '').startsWith(p));
-    cb(null, { origin: !origin ? false : open || allowed(origin) ? origin : false });
+    const url = req.url ?? '';
+    const open = openPaths.some((p) => url.startsWith(p));
+    const ok = !origin ? false : url.startsWith('/api/v1/ai/public/') ? aiPublic(origin) || allowed(origin) : open || allowed(origin);
+    cb(null, { origin: ok ? origin : false });
   });
 
   // ترويسات أمان لكل رد. الخادم JSON وصور فقط: لا شيء فيه يُعرض صفحةً أو

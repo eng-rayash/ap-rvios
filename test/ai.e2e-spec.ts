@@ -72,7 +72,7 @@ describe('RVIOS AI', () => {
     });
 
   beforeAll(async () => {
-    process.env.AI_LIMIT_BASIC = '6';
+    process.env.AI_LIMIT_BASIC = '10';
     process.env.AI_PER_MINUTE = '100';
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(AI_PROVIDER).useValue(fake).compile();
     app = moduleRef.createNestApplication();
@@ -105,7 +105,7 @@ describe('RVIOS AI', () => {
 
   it('الحالة: جاهز، والحصّة حسب باقة المتجر', async () => {
     const r = await request(http).get(`/api/v1/shop/stores/${storeA}/ai/status`).set(auth(a.token)).expect(200);
-    expect(r.body).toMatchObject({ ready: true, plan: 'basic', used: 0, limit: 6 });
+    expect(r.body).toMatchObject({ ready: true, plan: 'basic', used: 0, limit: 10 });
   });
 
   it('محادثة جديدة: بثّ، وحفظ، وعنوان تلقائي، وبيانات المتجر في التعليمات', async () => {
@@ -115,7 +115,7 @@ describe('RVIOS AI', () => {
     expect(ev.map((e) => e.event)).toEqual(['start', 'delta', 'delta', 'title', 'done']);
     conv = ev[0].data.conversationId as string;
     expect(ev.find((e) => e.event === 'title')?.data.title).toBe('عنوان تجريبي');
-    expect(ev.at(-1)?.data).toMatchObject({ status: 'ok', used: 1, limit: 6 });
+    expect(ev.at(-1)?.data).toMatchObject({ status: 'ok', used: 1, limit: 10 });
 
     const main = fake.calls.find((c) => !c.tier && !c.jsonSchema)!;
     expect(main.system).toContain('<store_data>');
@@ -186,6 +186,31 @@ describe('RVIOS AI', () => {
     await request(http).post(`/api/v1/shop/stores/${storeA}/ai/generate`).set(auth(a.token)).send({ tool: 'seo', language: 'ar' }).expect(400);
     await request(http).post(`/api/v1/shop/stores/${storeA}/ai/generate`).set(auth(a.token))
       .send({ tool: 'marketing', language: 'ar', marketing: { topic: 'عرض', platform: 'myspace' } }).expect(400);
+  });
+
+  it('المعرفة حسب السؤال وإعداد المتجر الفعلي في التعليمات', async () => {
+    fake.calls = [];
+    await chat(a.token, storeA, { message: 'كيف أضيف منطقة توصيل برسوم وحد توصيل مجاني؟' }).expect(200);
+    const sys = fake.calls.find((c) => !c.tier && !c.jsonSchema)!.system;
+    expect(sys).toContain('<platform_knowledge>');
+    expect(sys).toContain('# الشحن والتوصيل');
+    expect(sys).toContain('طرق الدفع: عند الاستلام');
+    expect(sys).toContain('طلبات بانتظار التأكيد');
+  });
+
+  it('أداتا الرد على العميل وسياسات المتجر — السياسة من إعداد المتجر الحقيقي', async () => {
+    const r = await request(http).post(`/api/v1/shop/stores/${storeA}/ai/generate`).set(auth(a.token))
+      .send({ tool: 'reply', language: 'ar', reply: { message: 'تأخر طلبي ثلاثة أيام', kind: 'message' } }).expect(200);
+    expect(r.body.result).toHaveProperty('replies');
+    fake.calls = [];
+    await request(http).post(`/api/v1/shop/stores/${storeA}/ai/generate`).set(auth(a.token))
+      .send({ tool: 'policy', language: 'ar', policy: { kind: 'shipping' } }).expect(200);
+    const sent = JSON.parse(fake.calls[0].turns[0].text);
+    expect(sent.kind).toBe('shipping');
+    expect(sent.store).toHaveProperty('zones');
+    expect(sent.store).toHaveProperty('payMethods');
+    await request(http).post(`/api/v1/shop/stores/${storeA}/ai/generate`).set(auth(a.token))
+      .send({ tool: 'policy', language: 'ar', policy: { kind: 'hack' } }).expect(400);
   });
 
   it('الحصّة الشهرية: الطلب بعد آخرها يُرفض برمزه قبل البث', async () => {

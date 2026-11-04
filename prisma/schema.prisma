@@ -1506,3 +1506,44 @@ model AiUsage {
   @@index([companyId, createdAt])
   @@map("ai_usage")
 }
+
+/// استهلاك مساعد الزوّار (www.rvios.com وstore.rvios.com) — بلا شركة ولا نصوص: الموقع،
+/// وبصمة العنوان المملّحة (لا العنوان نفسه)، والرموز. أساس الحدّ اليومي لكل زائر وللمنصة.
+model AiPublicUsage {
+  id             String @id @default(uuid())
+  /// web · platform
+  site           String
+  ipHash         String @map("ip_hash")
+  model          String @default("")
+  inputTokens    Int    @default(0) @map("input_tokens")
+  outputTokens   Int    @default(0) @map("output_tokens")
+  thoughtsTokens Int    @default(0) @map("thoughts_tokens")
+  /// ok · stopped · error
+  status         String @default("ok")
+  counted        Boolean @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([ipHash, createdAt])
+  @@map("ai_public_usage")
+}
+
+/// معرفة يضيفها فريق المنصة لـ RVIOS AI من لوحة الإدارة — تُدمج مع القاعدة المكتوبة في الشيفرة
+/// (src/modules/ai/knowledge/kb.ts) وتُسترجع حسب السؤال. «التدريب المستمر» بلا نشر شيفرة.
+model AiKnowledge {
+  id        String   @id @default(uuid())
+  title     String
+  /// كلمات بحث إضافية بالعربية والإنجليزية
+  tags      String[] @default([])
+  /// merchant · public
+  audience  String[] @default(["merchant", "public"])
+  text      String   @db.Text
+  active    Boolean  @default(true)
+  updatedBy String?  @map("updated_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("ai_knowledge")
+}
