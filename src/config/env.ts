@@ -55,6 +55,8 @@ export function checkEnv(env: NodeJS.ProcessEnv = process.env): EnvReport {
     warnings.push('EMAIL_OTP_ENABLED غير مفعّل — الدخول والتسجيل بلا رمز تحقق');
   }
 
+  if (!env.GEMINI_API_KEY?.trim()) warnings.push('GEMINI_API_KEY غير مضبوط — المساعد الذكي RVIOS AI يظهر «غير مفعّل» للتجّار');
+
   const channels = (env.NOTIFY_CHANNELS ?? 'console').split(',').map((c) => c.trim());
   if (channels.includes('whatsapp') && (!env.META_TOKEN || !env.WA_PHONE_ID)) {
     errors.push('NOTIFY_CHANNELS فيه whatsapp دون META_TOKEN و WA_PHONE_ID');

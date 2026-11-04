@@ -34,6 +34,13 @@ import { ApiKeysService } from './modules/developers/api-keys.service';
 import { WebhooksController } from './modules/webhooks/webhooks.controller';
 import { MerchantNotifier } from './modules/notify/merchant-notifier.service';
 import { StoreEmails } from './modules/notify/store-emails.service';
+import { AiContextService } from './modules/ai/ai-context.service';
+import { AiController } from './modules/ai/ai.controller';
+import { aiConfig } from './modules/ai/ai.config';
+import { AiService } from './modules/ai/ai.service';
+import { AiUsageService } from './modules/ai/ai-usage.service';
+import { AI_PROVIDER } from './modules/ai/providers/ai-provider';
+import { GeminiProvider } from './modules/ai/providers/gemini.provider';
 import { SubscriptionReminders } from './modules/notify/subscription-reminders.service';
 import { WebhooksService } from './modules/webhooks/webhooks.service';
 import { WorkspaceController } from './modules/workspace/workspace.controller';
@@ -121,6 +128,7 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     }),
   ],
   controllers: [
+    AiController,
     PlatformUsersController,
     RootController,
     HealthController,
@@ -168,6 +176,11 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     WebhooksService,
     MerchantNotifier,
     StoreEmails,
+    AiService,
+    AiContextService,
+    AiUsageService,
+    // المزوّد خلف رمز: الاختبارات تستبدله، ومزوّد آخر لاحقًا يُسجَّل هنا
+    { provide: AI_PROVIDER, useFactory: () => new GeminiProvider(aiConfig()) },
     SubscriptionReminders,
     ActivityService,
     NotificationsService,

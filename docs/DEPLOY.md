@@ -54,6 +54,9 @@ docker build -t azm-api .
 | `TEAM_NOTIFY_EMAIL` | | بريد الفريق لطلبات المتاجر الجديدة (افتراضيًا `EMAIL_REPLY_TO`) |
 | `AZMSMART_URL` | | `https://azm.rvios.com` — روابط رسائل البريد |
 | `RESEND_API_KEY` | | مفتاح Resend للبريد الصادر |
+| `GEMINI_API_KEY` | | مفتاح Google Gemini لمساعد التاجر RVIOS AI (من aistudio.google.com/apikey) — بدونه تظهر الميزة «غير مفعّلة» |
+| `GEMINI_MODELS` | | سلسلة نماذج بفواصل، الافتراضي `gemini-flash-lite-latest,gemini-flash-latest` |
+| `AI_LIMIT_BASIC` · `AI_LIMIT_PLUS` · `AI_LIMIT_PRO` | | حصّة الطلبات الشهرية لكل متجر حسب باقته (افتراضيًا 30 · 400 · 2000)، و0 يعطّلها |
 | `EMAIL_FROM` | | المرسل من نطاق موثَّق في Resend: `RVIOS <no-reply@rvios.com>` |
 | `EMAIL_REPLY_TO` | | عنوان الردود: `rviostech@gmail.com` |
 | `EMAIL_OTP_ENABLED` | | `1` = رمز بالبريد عند التسجيل والدخول — بعد توثيق النطاق فقط، وتأكد أن حسابات فريق المنصة ببريد حقيقي |

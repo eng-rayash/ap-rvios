@@ -84,6 +84,10 @@ export class TenantPrismaService extends PrismaClient implements OnModuleInit {
     'cmsMedia',
     'cmsContact',
     'cmsSetting',
+    // RVIOS AI: المحادثات تُقيَّد بالمستخدم والمتجر فوق الشركة — انظر AiConversationsService
+    'aiConversation',
+    'aiMessage',
+    'aiUsage',
   ]);
 
   async onModuleInit(): Promise<void> {

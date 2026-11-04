@@ -123,6 +123,7 @@ model User {
   memberships Membership[]
   auditLogs   AuditLog[]
   emailCodes  EmailCode[]
+  aiConversations AiConversation[]
 
   @@map("users")
 }
@@ -929,6 +930,8 @@ model ShopStore {
   customers    ShopCustomer[]
   zones        ShopDeliveryZone[]
   orders       ShopOrder[]
+  aiConversations AiConversation[]
+  aiUsage      AiUsage[]
 
   @@index([companyId])
   @@map("shop_stores")
@@ -1426,4 +1429,80 @@ model WebhookDelivery {
   @@index([status, nextAttemptAt])
   @@index([webhookId, createdAt])
   @@map("webhook_deliveries")
+}
+
+// ═══════════════════════════════════════════════════════════
+//  RVIOS AI — مساعد التاجر
+// ═══════════════════════════════════════════════════════════
+
+/// محادثة تاجر مع المساعد — تخصّ مستخدمًا واحدًا في متجر واحد: زميله في الفريق
+/// لا يرى محادثاته، ومتجر آخر للشركة نفسها لا يراها.
+model AiConversation {
+  id           String @id @default(uuid())
+  companyId    String @map("company_id")
+  storeId      String @map("store_id")
+  userId       String @map("user_id")
+  title        String @default("")
+  /// chat = مساعد عام · insights = بأرقام المتجر الفعلية
+  mode         String @default("chat")
+  messageCount Int    @default(0) @map("message_count")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  store    ShopStore   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AiMessage[]
+
+  @@index([storeId, userId, updatedAt])
+  @@map("ai_conversations")
+}
+
+model AiMessage {
+  id             String @id @default(uuid())
+  companyId      String @map("company_id")
+  conversationId String @map("conversation_id")
+  /// user | model
+  role           String
+  content        String @db.Text
+  /// ok · stopped (أوقفه التاجر) · error (لم يكتمل)
+  status         String @default("ok")
+  model          String @default("")
+  inputTokens    Int    @default(0) @map("input_tokens")
+  outputTokens   Int    @default(0) @map("output_tokens")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("ai_messages")
+}
+
+/// سجل كل طلب إلى مزوّد الذكاء الاصطناعي — أساس الحصّة الشهرية لكل متجر، ورصيد
+/// الاستهلاك والتكلفة لاحقًا. لا يحمل نص المحادثة.
+model AiUsage {
+  id             String  @id @default(uuid())
+  companyId      String  @map("company_id")
+  storeId        String  @map("store_id")
+  userId         String  @map("user_id")
+  /// chat · insights · product · marketing · seo · title
+  feature        String
+  provider       String  @default("gemini")
+  model          String  @default("")
+  inputTokens    Int     @default(0) @map("input_tokens")
+  outputTokens   Int     @default(0) @map("output_tokens")
+  thoughtsTokens Int     @default(0) @map("thoughts_tokens")
+  /// ok · stopped · error
+  status         String  @default("ok")
+  /// تُحتسب في الحصّة؟ العناوين التلقائية والأخطاء قبل التوليد لا تُحتسب
+  counted        Boolean @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  store ShopStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, createdAt])
+  @@index([companyId, createdAt])
+  @@map("ai_usage")
 }
