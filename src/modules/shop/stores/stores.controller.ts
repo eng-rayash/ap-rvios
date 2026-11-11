@@ -197,6 +197,22 @@ export class PlatformStoresController {
     return this.appearance.unlock(storeId);
   }
 
+  /** بطاقة المتجر الكاملة: الشركة والمالك والاشتراك والأرقام والفواتير */
+  @Get(':storeId/overview')
+  overview(@Platform() _ctx: PlatformContext, @Param('storeId', ParseUUIDPipe) storeId: string) {
+    return this.stores.platformOverview(storeId);
+  }
+
+  /** تغيير القالب مباشرة — المدفوع يُمنح للمتجر */
+  @Patch(':storeId/template')
+  setTemplate(
+    @Platform() _ctx: PlatformContext,
+    @Param('storeId', ParseUUIDPipe) storeId: string,
+    @Body() body: { template?: string },
+  ) {
+    return this.stores.platformSetTemplate(storeId, String(body?.template ?? ''));
+  }
+
   /** شارة «موثَّق» — تمنحها الإدارة بعد المراجعة. */
   @Patch(':storeId/verified')
   verified(

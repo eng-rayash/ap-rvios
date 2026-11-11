@@ -34,6 +34,11 @@ import { ApiKeysService } from './modules/developers/api-keys.service';
 import { WebhooksController } from './modules/webhooks/webhooks.controller';
 import { MerchantNotifier } from './modules/notify/merchant-notifier.service';
 import { StoreEmails } from './modules/notify/store-emails.service';
+import { PushService } from './modules/notify/push.service';
+import { SupportSessionController } from './modules/platform-admin/support-session.controller';
+import { PlatformAlerts } from './modules/notify/platform-alerts.service';
+import { DevicesController, PlatformAlertsController } from './modules/notify/notify.controllers';
+import { LeadsService, PlatformLeadsController, PublicLeadsController } from './modules/leads/leads';
 import { AiContextService } from './modules/ai/ai-context.service';
 import { AiController } from './modules/ai/ai.controller';
 import { aiConfig } from './modules/ai/ai.config';
@@ -171,6 +176,11 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     AppConfigController,
     ShopReviewsController,
     SettingsController,
+    DevicesController,
+    SupportSessionController,
+    PlatformAlertsController,
+    PublicLeadsController,
+    PlatformLeadsController,
   ],
   providers: [
     TenantPrismaService,
@@ -182,6 +192,9 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     WebhooksService,
     MerchantNotifier,
     StoreEmails,
+    PushService,
+    PlatformAlerts,
+    LeadsService,
     AiService,
     AiContextService,
     AiUsageService,

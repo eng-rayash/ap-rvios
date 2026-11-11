@@ -23,6 +23,7 @@ import {
   ShopPlan,
 } from './shop-billing.constants';
 import { StoreSubscriptionsService } from './store-subscriptions.service';
+import { PlatformAlerts } from '../notify/platform-alerts.service';
 import { STORE_TEMPLATES, grantTemplate, isTemplate, templateCost } from '../shop/store-templates';
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -43,6 +44,7 @@ export class ShopInvoicesService {
     private readonly prisma: TenantPrismaService,
     private readonly settings: PlatformSettingsService,
     private readonly subs: StoreSubscriptionsService,
+    private readonly alerts: PlatformAlerts,
   ) {}
 
   async list(ctx: TenantContext, storeRef?: string) {
@@ -280,6 +282,13 @@ export class ShopInvoicesService {
     if (inv.kind === InvoiceKind.Template && inv.storeRef && inv.item) {
       await grantTemplate(db, inv.storeRef, inv.item);
     }
+    void this.alerts.raise({
+      kind: 'invoice_proof',
+      title: `إيصال دفع بانتظار المراجعة — ${inv.invoiceNumber}`,
+      body: `المبلغ: ${Number(inv.amount)} ${inv.currency}${input.method ? `\nالوسيلة: ${input.method}` : ''}`,
+      link: '/platform/invoices',
+      data: { invoiceId: inv.id },
+    });
     return updated;
   }
 }

@@ -75,6 +75,8 @@ export class WorkspaceController {
       platformRole: user?.isPlatformStaff ? (user.platformRole ?? 0) : null,
       isSite: company?.workspaceSlug === SITE_WORKSPACE_SLUG,
       storeCount: stores,
+      // جلسة دعم من فريق المنصة: الواجهة تعرض شريطًا «تدير هذه الشركة كفريق RVIOS»
+      support: ctx.support === true,
     };
   }
 

@@ -18,6 +18,7 @@ const OPEN = [InvoiceStatus.Unpaid, InvoiceStatus.UnderReview];
  * الباقة والقالب، ويتواصل التاجر مع الفريق للدفع. الفريق يفعّله من لوحة المنصة — فتُسدَّد الفواتير
  * وتعمل الباقة والقالب — أو يرفضه فيُحذف ويتحرر رابطه.
  */
+import { PlatformAlerts } from '../../notify/platform-alerts.service';
 @Injectable()
 export class StoreRequestsService {
   constructor(
@@ -27,6 +28,7 @@ export class StoreRequestsService {
     private readonly platformInvoices: PlatformInvoicesService,
     private readonly cache: StorefrontCache,
     private readonly emails: StoreEmails,
+    private readonly alerts: PlatformAlerts,
   ) {}
 
   async create(ctx: TenantContext, dto: CreateStoreDto) {
@@ -50,7 +52,15 @@ export class StoreRequestsService {
       throw e;
     }
     const open = await this.prisma.platformInvoice.findMany({ where: { storeRef: store.id, status: { in: OPEN }, deletedAt: null }, select: { amount: true, currency: true } });
-    void this.emails.storeRequested({ ...store, companyId: ctx.companyId }, open.reduce((a, i) => a + Number(i.amount), 0), open[0]?.currency ?? 'USD');
+    const due = open.reduce((a, i) => a + Number(i.amount), 0);
+    void this.emails.storeRequested({ ...store, companyId: ctx.companyId }, due, open[0]?.currency ?? 'USD');
+    void this.alerts.raise({
+      kind: 'store_request',
+      title: `طلب متجر جديد — ${store.name}`,
+      body: `المتجر: ${store.name} (${store.slug})\nالباقة: ${plan} · ${months === 12 ? 'سنوي' : 'شهري'}\nالمستحق: ${due} ${open[0]?.currency ?? 'USD'}`,
+      link: '/platform/requests',
+      data: { storeId: store.id },
+    });
     return this.stores.get(ctx, store.id);
   }
 

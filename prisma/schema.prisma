@@ -124,6 +124,7 @@ model User {
   auditLogs   AuditLog[]
   emailCodes  EmailCode[]
   aiConversations AiConversation[]
+  devices         DeviceToken[]
 
   @@map("users")
 }
@@ -1546,4 +1547,78 @@ model AiKnowledge {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("ai_knowledge")
+}
+
+/// طلب من زائر لفريق المنصة: متجر بتصميم خاص، أو استفسار مبيعات.
+/// عالمي (لا `companyId`): الزائر لم يُنشئ حسابًا بعد، والفريق يتابعه من «طلبات التصميم».
+model PlatformLead {
+  id       String  @id @default(uuid())
+  /// custom_store · sales
+  kind     String  @default("custom_store")
+  name     String
+  phone    String
+  email    String  @default("")
+  country  String  @default("")
+  /// نشاط المتجر: عطور، أزياء…
+  business String  @default("")
+  /// باقة الميزانية المختارة: starter · growth · premium · unsure
+  budget   String  @default("")
+  /// متى يريد الإطلاق: asap · month · quarter · unsure
+  timeline String  @default("")
+  /// الصفحات والمزايا والأمثلة المختارة من النموذج
+  details  Json    @default("{}")
+  message  String  @default("") @db.Text
+  /// new · contacted · quoted · won · lost
+  status   String  @default("new")
+  /// ملاحظات الفريق الداخلية
+  notes    String  @default("") @db.Text
+  ipHash   String  @default("") @map("ip_hash")
+  handledBy String? @map("handled_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@map("platform_leads")
+}
+
+/// صندوق تنبيهات فريق المنصة المشترك: طلب متجر، إيصال دفع، طلب تصميم…
+/// مشترك عمدًا — من يعالج التنبيه يعلّمه للجميع.
+model PlatformAlert {
+  id    String @id @default(uuid())
+  /// store_request · invoice_proof · custom_store · contact · store_created
+  kind  String
+  title String
+  body  String  @default("")
+  /// مسار داخل عزم سمارت يفتح الموضوع: /platform/requests
+  link  String?
+  data  Json    @default("{}")
+  readAt   DateTime? @map("read_at")
+  readById String?   @map("read_by_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([readAt, createdAt])
+  @@map("platform_alerts")
+}
+
+/// جهاز مسجَّل لإشعارات الدفع (FCM): تطبيق عزم للتاجر، وتطبيق RVOS لفريق المنصة.
+model DeviceToken {
+  id     String @id @default(uuid())
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token  String @unique
+  /// android · ios · web
+  platform String @default("android")
+  /// azm · rvos
+  app      String @default("azm")
+  /// الشركة التي اختارها في التطبيق — إشعارات متاجرها تصله
+  companyId String? @map("company_id")
+
+  createdAt  DateTime @default(now()) @map("created_at")
+  lastSeenAt DateTime @default(now()) @map("last_seen_at")
+
+  @@index([userId])
+  @@index([companyId])
+  @@map("device_tokens")
 }

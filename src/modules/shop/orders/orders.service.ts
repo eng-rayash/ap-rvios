@@ -55,6 +55,8 @@ export function deliveryFor(
   return fee;
 }
 
+import { symbolOf } from '../shop.constants';
+import { PushService } from '../../notify/push.service';
 @Injectable()
 export class OrdersService {
   constructor(
@@ -63,6 +65,7 @@ export class OrdersService {
     private readonly webhooks: WebhooksService,
     private readonly merchant: MerchantNotifier,
     private readonly emails: StoreEmails,
+    private readonly push: PushService,
   ) {}
 
   /** يُطلق حدث خطاف بعد اكتمال العملية — لا ينتظر ولا يرمي. */
@@ -92,6 +95,13 @@ export class OrdersService {
         this.notify(store, 'order.created', placed.order);
         void this.merchant.newOrder(store, placed.order);
         void this.emails.newOrder(store, placed.order);
+        void this.push.toCompany(store.companyId, {
+          title: `طلب جديد ${placed.order.ref} — ${store.name}`,
+          body: `${placed.order.custName || 'عميل'} · ${Number(placed.order.total).toLocaleString('en-US')} ${symbolOf(store.country)}`,
+          link: `/orders/${placed.order.id}`,
+          kind: 'order',
+          data: { orderId: placed.order.id, storeId: store.id },
+        }).catch(() => undefined);
         return placed;
       } catch (err) {
         // تصادم مرجع نادر (٣٢^٥) — نعيد بمرجع جديد بدل فشل الطلب

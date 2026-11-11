@@ -112,7 +112,8 @@ describe('واجهة المتجر: الكتالوج والإشعارات', () =>
     expect(shirt.stock).toBe('low');
 
     // التصنيف الفارغ لا يُعرض؛ والماركة تُعدّ من المعروض فقط
-    expect(r.body.categories).toEqual([{ id: cat.id, name: 'قمصان', count: 1 }]);
+    expect(r.body.categories).toEqual([{ id: cat.id, name: 'قمصان', parentId: null, count: 1, total: 1 }]);
+    expect(shirt.rootCategoryId).toBe(cat.id);
     expect(r.body.brands).toEqual([{ name: 'نسيج', count: 2 }]);
   });
 

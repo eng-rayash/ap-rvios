@@ -321,13 +321,26 @@ export class ShopPublicService {
       this.prisma.shopCategory.findMany({
         where: { storeId: store.id },
         orderBy: [{ sort: 'asc' }, { name: 'asc' }],
-        select: { id: true, name: true },
+        select: { id: true, name: true, parentId: true },
       }),
       this.prisma.shopDeliveryZone.findMany({
         where: { storeId: store.id },
         orderBy: [{ sort: 'asc' }, { name: 'asc' }],
       }),
     ]);
+
+    // قوالب الواجهة تعرض شريط تصنيفات مسطّحًا: منتج التصنيف الفرعي يُحسب لأبيه
+    // الأعلى، وإلا اختفى التصنيف الأب (لا منتجات مباشرة فيه) وظهر الفرعي وحده.
+    const parentOf = new Map(cats.map((c) => [c.id, c.parentId]));
+    const rootOf = (id: string | null): string | null => {
+      let cur = id;
+      for (let hop = 0; cur && hop < 8; hop++) {
+        const up = parentOf.get(cur);
+        if (!up || !parentOf.has(up)) return cur;
+        cur = up;
+      }
+      return cur;
+    };
 
     const products = rows.map((p) => {
       // المحاور بترتيب التاجر لا أبجديًا: «كبير» قبل «صغير» يقرؤه العميل مبعثرًا.
@@ -358,6 +371,7 @@ export class ShopPublicService {
         qty: p.qty,
         image: p.image,
         categoryId: p.categoryId,
+        rootCategoryId: p.categoryId && parentOf.has(p.categoryId) ? rootOf(p.categoryId) : null,
         hasVariants: p.hasVariants,
         stock: p.qty <= 0 ? 'none' : p.qty <= 5 ? 'low' : 'ok',
         stockLabel:
@@ -375,9 +389,11 @@ export class ShopPublicService {
     });
 
     const catTally = new Map<string, number>();
+    const rootTally = new Map<string, number>();
     const brandTally = new Map<string, number>();
     for (const p of products) {
       if (p.categoryId) catTally.set(p.categoryId, (catTally.get(p.categoryId) ?? 0) + 1);
+      if (p.rootCategoryId) rootTally.set(p.rootCategoryId, (rootTally.get(p.rootCategoryId) ?? 0) + 1);
       if (p.brand) brandTally.set(p.brand, (brandTally.get(p.brand) ?? 0) + 1);
     }
 
@@ -385,9 +401,15 @@ export class ShopPublicService {
       store: this.publicStore(store, plan),
       zones: zones.map((z) => ({ id: z.id, name: z.name, fee: z.fee, freeOver: z.freeOver })),
       products,
+      // `count` لمنتجات التصنيف نفسه، و`total` له ولفروعه — الأعلى يظهر ما دام
+      // في شجرته منتج، والفرعي ما دام فيه منتج مباشر
       categories: cats
-        .map((c) => ({ ...c, count: catTally.get(c.id) ?? 0 }))
-        .filter((c) => c.count > 0),
+        .map((c) => ({
+          ...c,
+          count: catTally.get(c.id) ?? 0,
+          total: c.parentId ? catTally.get(c.id) ?? 0 : rootTally.get(c.id) ?? 0,
+        }))
+        .filter((c) => c.total > 0),
       brands: [...brandTally.entries()]
         .map(([name, count]) => ({ name, count }))
         .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'ar')),

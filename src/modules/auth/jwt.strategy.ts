@@ -11,6 +11,8 @@ export interface JwtPayload {
   companyId: string;
   /** وقت الإصدار بالثواني (يضعه jsonwebtoken) — يقارنه الحارس بتغيير كلمة المرور */
   iat?: number;
+  /** جلسة دعم من فريق المنصة — يتحقق منها الحارس مع كل طلب */
+  support?: boolean;
 }
 
 /**
@@ -52,6 +54,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!payload?.sub || !payload?.companyId) {
       throw new UnauthorizedException('رمز ناقص الحمولة');
     }
-    return { sub: payload.sub, companyId: payload.companyId, iat: payload.iat };
+    return { sub: payload.sub, companyId: payload.companyId, iat: payload.iat, ...(payload.support === true ? { support: true } : {}) };
   }
 }

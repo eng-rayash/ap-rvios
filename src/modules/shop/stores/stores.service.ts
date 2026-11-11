@@ -432,6 +432,63 @@ export class StoresService {
     return updated;
   }
 
+  /**
+   * بطاقة المتجر كاملة لفريق المنصة: المتجر وشركته وصاحبه واشتراكه وأرقامه
+   * وفواتيره المفتوحة — شاشة واحدة يُدار منها كل شيء.
+   */
+  async platformOverview(storeId: string) {
+    const store = await this.prisma.shopStore.findUnique({
+      where: { id: storeId },
+      include: {
+        organization: { select: { id: true, name: true, companyCode: true, createdAt: true } },
+        _count: { select: { products: true, orders: true, customers: true, categories: true } },
+      },
+    });
+    if (!store) throw new NotFoundException('المتجر غير موجود');
+    const [owner, sub, invoices, sales, plan] = await Promise.all([
+      this.prisma.membership.findFirst({
+        where: { organizationId: store.companyId, isActive: true, deletedAt: null, role: { in: [0, 1] } },
+        orderBy: { role: 'asc' },
+        select: { user: { select: { id: true, displayName: true, email: true, phone: true, lastLoginAt: true } } },
+      }),
+      this.prisma.storeSubscription.findFirst({ where: { companyId: store.companyId, storeRef: store.id, deletedAt: null } }),
+      this.prisma.platformInvoice.findMany({
+        where: { storeRef: store.id, deletedAt: null },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: { id: true, invoiceNumber: true, kind: true, status: true, amount: true, currency: true, plan: true, item: true, createdAt: true },
+      }),
+      this.prisma.shopOrder.aggregate({ where: { storeId: store.id }, _sum: { total: true } }),
+      this.access.planOf(store.companyId, store.id),
+    ]);
+    const { organization, _count, ...rest } = store;
+    return {
+      store: { ...storeView(rest as ShopStore, plan), status: store.status, verified: store.verified, ownedTemplates: store.ownedTemplates, createdAt: store.createdAt },
+      plan,
+      company: organization,
+      owner: owner?.user ?? null,
+      subscription: sub,
+      counts: { ..._count, sales: Number(sales._sum.total ?? 0) },
+      invoices,
+      templates: Object.entries(STORE_TEMPLATES).map(([id, t]) => ({ id, tier: t.tier, price: t.price, owned: store.ownedTemplates.includes(id) })),
+    };
+  }
+
+  /**
+   * فريق المنصة يغيّر قالب المتجر مباشرة. القالب المدفوع غير المملوك يُمنح
+   * (هدية أو بعد دفع خارج المنصة) فيبقى للمتجر إن عاد إليه لاحقًا.
+   */
+  async platformSetTemplate(storeId: string, template: string) {
+    if (!isTemplate(template)) throw new BadRequestException('قالب غير معروف');
+    const store = await this.prisma.shopStore.findUnique({ where: { id: storeId } });
+    if (!store) throw new NotFoundException('المتجر غير موجود');
+    const paid = STORE_TEMPLATES[template].tier !== 'free';
+    const owned = paid && !store.ownedTemplates.includes(template) ? [...store.ownedTemplates, template] : store.ownedTemplates;
+    const updated = await this.prisma.shopStore.update({ where: { id: storeId }, data: { template, ownedTemplates: owned } });
+    this.cache.purge(store.slug);
+    return { ok: true, template: updated.template, ownedTemplates: updated.ownedTemplates };
+  }
+
   async platformSetVerified(storeId: string, verified: boolean) {
     const store = await this.prisma.shopStore.findUnique({ where: { id: storeId } });
     if (!store) throw new NotFoundException('المتجر غير موجود');

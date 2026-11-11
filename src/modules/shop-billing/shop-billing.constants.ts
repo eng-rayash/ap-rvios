@@ -89,10 +89,12 @@ export const SETTING_KEYS = new Set([
   'app.maintenance',
   'app.maintenanceMessage',
   'app.storeUrl',
+  'notify.emails',
+  'notify.whatsapp',
 ]);
 
 /** مفاتيح نصّية حرّة (لا أرقام) — تُقصّ ولا تُحوَّل. */
-export const TEXT_SETTING_PREFIXES = ['pay.', 'app.maintenanceMessage', 'app.storeUrl'];
+export const TEXT_SETTING_PREFIXES = ['pay.', 'app.maintenanceMessage', 'app.storeUrl', 'notify.'];
 /** عملات الفوترة المقبولة */
 export const BILLING_CURRENCIES = new Set(['USD', 'YER', 'SAR']);
 /** رقم إصدار دلالي: 1.2.3 */
@@ -103,3 +105,58 @@ export const PAYMENT_METHODS = [
   { id: 'jaib', name: 'محفظة جيب', scope: 'local', key: 'pay.jaib' },
   { id: 'paypal', name: 'PayPal', scope: 'intl', key: 'pay.paypal' },
 ] as const;
+
+/**
+ * مزوّدو حسابات الاستلام التي تُعرض للعملاء في صفحة «طرق الدفع».
+ * `color` لون هوية المزوّد في البطاقة، و`kind` بنك أو محفظة أو دولي.
+ */
+export const PAY_PROVIDERS = {
+  kuraimi: { name: 'بنك الكريمي', nameEn: 'Al-Kuraimi Bank', kind: 'bank', color: '#6B3FA0' },
+  jaib: { name: 'محفظة جيب', nameEn: 'Jaib Wallet', kind: 'wallet', color: '#E31E24' },
+  jawali: { name: 'محفظة جوالي', nameEn: 'Jawali Wallet', kind: 'wallet', color: '#0E7C86' },
+  onecash: { name: 'ون كاش', nameEn: 'OneCash', kind: 'wallet', color: '#F7941D' },
+  floosak: { name: 'فلوسك', nameEn: 'Floosak', kind: 'wallet', color: '#1BA39C' },
+  paypal: { name: 'PayPal', nameEn: 'PayPal', kind: 'intl', color: '#003087' },
+  other: { name: 'حساب آخر', nameEn: 'Other', kind: 'bank', color: '#555555' },
+} as const;
+export type PayProvider = keyof typeof PAY_PROVIDERS;
+
+export interface PayAccount {
+  id: string;
+  provider: PayProvider;
+  /** عنوان البطاقة: «حساب جاري — ريال يمني» */
+  title: string;
+  /** اسم صاحب الحساب كما يظهر للمحوِّل (اختياري) */
+  holder: string;
+  /** رقم الحساب أو المحفظة كما يُنسخ */
+  number: string;
+  currency: 'YER' | 'USD' | 'SAR' | '';
+  /** صورة رمز QR: رابط https أو مسار ثابت في الواجهة (`/pay/…`) */
+  qr: string;
+  note: string;
+  enabled: boolean;
+}
+
+/** الحسابات الافتراضية ما لم تضبط الإدارة غيرها من «إعدادات المنصة». */
+export const DEFAULT_PAY_ACCOUNTS: PayAccount[] = [
+  {
+    id: 'kuraimi-yer', provider: 'kuraimi', title: 'حساب جاري — ريال يمني', holder: '',
+    number: '3075249852', currency: 'YER', qr: '',
+    note: 'إيداع أو حوالة إلى الحساب من أي فرع أو من تطبيق الكريمي.', enabled: true,
+  },
+  {
+    id: 'kuraimi-usd', provider: 'kuraimi', title: 'حساب جاري — دولار أمريكي', holder: '',
+    number: '3204875528', currency: 'USD', qr: '',
+    note: 'للدفع بالدولار من داخل اليمن أو خارجه.', enabled: true,
+  },
+  {
+    id: 'jaib', provider: 'jaib', title: 'محفظة جيب', holder: '',
+    number: '601762', currency: '', qr: '/pay/jaib-qr.png',
+    note: 'امسح الرمز من تطبيق جيب، أو حوّل إلى رقم المحفظة.', enabled: true,
+  },
+  {
+    id: 'jawali', provider: 'jawali', title: 'محفظة جوالي', holder: 'رياش فيصل البريهي',
+    number: '778211887', currency: '', qr: '/pay/jawali-qr.png',
+    note: 'امسح الرمز من تطبيق جوالي، أو حوّل إلى رقم المحفظة.', enabled: true,
+  },
+];

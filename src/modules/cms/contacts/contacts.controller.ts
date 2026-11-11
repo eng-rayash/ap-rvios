@@ -6,11 +6,13 @@ import { PublicRateLimit } from '../../shop/public/rate-limit';
 import { ContactsService } from './contacts.service';
 import { SubmitContactDto, UpdateContactStatusDto } from './dto';
 
+import { PlatformAlerts } from '../../notify/platform-alerts.service';
 @Controller('cms/contacts')
 export class ContactsController {
   constructor(
     private readonly contacts: ContactsService,
     private readonly limit: PublicRateLimit,
+    private readonly alerts: PlatformAlerts,
   ) {}
 
   /**
@@ -19,10 +21,17 @@ export class ContactsController {
    */
   @Public()
   @Post('public')
-  submitPublic(@Body() dto: SubmitContactDto, @Ip() ip: string) {
+  async submitPublic(@Body() dto: SubmitContactDto, @Ip() ip: string) {
     // خمس رسائل في الساعة من عنوان واحد — تكفي زائرًا حقيقيًا وتقطع السيل الآلي
     this.limit.check(`contact:${ip}`, Number(process.env.CONTACT_LIMIT) || 5, 60 * 60_000);
-    return this.contacts.submitPublic(dto);
+    const saved = await this.contacts.submitPublic(dto);
+    void this.alerts.raise({
+      kind: 'contact',
+      title: `رسالة جديدة من الموقع — ${dto.name}`,
+      body: [dto.phone ? `الهاتف: ${dto.phone}` : '', dto.email ? `البريد: ${dto.email}` : '', String(dto.message ?? '').slice(0, 400)].filter(Boolean).join('\n'),
+      link: '/site/messages',
+    });
+    return saved;
   }
 
   @Get()

@@ -22,6 +22,9 @@ export interface TenantContext {
 
   /** معرّف العضوية — يربط المستخدم بالشركة */
   readonly membershipId: string;
+
+  /** جلسة دعم من فريق المنصة (لا عضوية): انظر `SupportSessionController` */
+  readonly support?: boolean;
 }
 
 /**

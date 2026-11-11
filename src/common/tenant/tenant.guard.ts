@@ -108,7 +108,7 @@ export class TenantGuard implements CanActivate {
 
     // `req.user` يضعه JwtStrategy بعد التحقّق من التوقيع
     const payload = req.user as
-      | { sub?: string; companyId?: string; iat?: number }
+      | { sub?: string; companyId?: string; iat?: number; support?: boolean }
       | undefined;
 
     if (!payload?.sub) {
@@ -155,6 +155,10 @@ export class TenantGuard implements CanActivate {
       },
     });
 
+    if (!membership && payload.support === true) {
+      return this.supportSession(req, payload.sub, payload.companyId, payload.iat, minRole);
+    }
+
     if (!membership) {
       // لا نكشف ما إذا كانت الشركة موجودة: الرسالة نفسها لعدم العضوية
       // ولعدم وجود الشركة. الفارق بينهما يسرّب وجود شركات.
@@ -183,6 +187,40 @@ export class TenantGuard implements CanActivate {
     };
     req.tenant = ctx;
 
+    return true;
+  }
+
+  /**
+   * جلسة دعم فريق المنصة داخل شركة ليس عضوًا فيها — تصدر من
+   * `POST /platform/shop-stores/:id/support-session` لموظف منصة فعّال فقط.
+   * يُعاد التحقق هنا مع كل طلب: موظف سُحبت صلاحيته تسقط جلساته فورًا.
+   * الدور «مدير عام» لا «مالك»: يدير المتجر كاملًا ولا ينقل ملكية ولا يحذف الشركة.
+   */
+  private async supportSession(
+    req: { method: string; tenant?: TenantContext },
+    userId: string,
+    companyId: string,
+    iat: number | undefined,
+    minRole: UserRole | undefined,
+  ): Promise<boolean> {
+    const [user, company] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: userId }, select: { isPlatformStaff: true, passwordChangedAt: true, deletedAt: true } }),
+      this.prisma.organization.findUnique({ where: { id: companyId }, select: { id: true, workspaceSlug: true } }),
+    ]);
+    if (!user?.isPlatformStaff || user.deletedAt || !company) {
+      throw new ForbiddenException('لا عضوية فعّالة في هذه الشركة');
+    }
+    if (issuedBeforePasswordChange(iat, user.passwordChangedAt)) {
+      throw new UnauthorizedException(STALE_SESSION);
+    }
+    if (company.workspaceSlug === DEMO_WORKSPACE_SLUG && !READ_METHODS.has(req.method)) {
+      throw new ForbiddenException(DEMO_READONLY);
+    }
+    const role = UserRole.SuperAdmin;
+    if (minRole !== undefined && !hasRole(role, minRole)) {
+      throw new ForbiddenException('هذا الإجراء لصاحب الشركة وحده');
+    }
+    req.tenant = { userId, companyId, role, membershipId: `platform:${userId}`, support: true };
     return true;
   }
 

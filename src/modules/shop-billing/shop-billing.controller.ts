@@ -69,11 +69,25 @@ export class ShopBillingController {
     };
   }
 
+  /**
+   * حسابات الاستلام المعلنة (الكريمي، جيب، جوالي…) لصفحة «طرق الدفع».
+   * أرقام استلام يعطيها الفريق لكل مشترٍ أصلًا — نشرها يختصر خطوة ولا يكشف سرًّا.
+   */
+  @Public()
+  @Get('public/payment-accounts')
+  async paymentAccounts() {
+    return { accounts: await this.settings.payAccounts() };
+  }
+
   /** الأسعار ووسائل الدفع — لعرض صفحة الترقية. */
   @Get('billing/pricing')
   async pricing(@Tenant() _ctx: TenantContext) {
     // المعلن نفسه + وسائل الدفع (أرقام الحسابات) لمن دخل فقط
-    return { ...(await this.publicPricing()), methods: await this.settings.paymentMethods() };
+    return {
+      ...(await this.publicPricing()),
+      methods: await this.settings.paymentMethods(),
+      accounts: await this.settings.payAccounts(),
+    };
   }
 
   /** خانات المتاجر التي يملكها الحساب. */

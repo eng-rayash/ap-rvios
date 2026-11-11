@@ -4,7 +4,11 @@ import { Prisma } from '@prisma/client';
 import { TenantPrismaService } from '../../common/prisma/tenant-prisma.service';
 import {
   BILLING_CURRENCIES,
+  DEFAULT_PAY_ACCOUNTS,
+  PAY_PROVIDERS,
   PAYMENT_METHODS,
+  type PayAccount,
+  type PayProvider,
   SEMVER,
   SETTING_KEYS,
   TEXT_SETTING_PREFIXES,
@@ -99,6 +103,64 @@ export class PlatformSettingsService {
     return out;
   }
 
+  /**
+   * حسابات الاستلام (بنوك ومحافظ) — ما ضبطته الإدارة وإلا الافتراضي.
+   * `all` للوحة الإدارة، والعامة ترى المفعَّل فقط.
+   */
+  async payAccounts(all = false) {
+    const saved = await this.get<PayAccount[]>('pay.accounts');
+    const list = Array.isArray(saved) ? saved : DEFAULT_PAY_ACCOUNTS;
+    return list
+      .filter((a) => all || a.enabled)
+      .map((a) => {
+        const p = PAY_PROVIDERS[a.provider] ?? PAY_PROVIDERS.other;
+        return { ...a, providerName: p.name, providerNameEn: p.nameEn, kind: p.kind, color: p.color };
+      });
+  }
+
+  /** يتحقق من قائمة الحسابات ويحفظها كاملة (الترتيب ترتيب العرض)؛ `null` يعيد الافتراضي. */
+  private async savePayAccounts(raw: unknown): Promise<void> {
+    if (raw === null) {
+      await this.prisma.platformSetting.deleteMany({ where: { key: 'pay.accounts' } });
+      return;
+    }
+    if (!Array.isArray(raw) || raw.length > 20) throw new BadRequestException('قائمة الحسابات غير صالحة');
+    const str = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max);
+    const seen = new Set<string>();
+    const list: PayAccount[] = raw.map((r, i) => {
+      const o = (r ?? {}) as Record<string, unknown>;
+      const provider = str(o.provider, 20) as PayProvider;
+      if (!(provider in PAY_PROVIDERS)) throw new BadRequestException(`مزوّد غير معروف في الحساب ${i + 1}`);
+      let id = str(o.id, 40).replace(/[^a-z0-9-]/gi, '').toLowerCase() || `${provider}-${i + 1}`;
+      while (seen.has(id)) id = `${id}-${i + 1}`;
+      seen.add(id);
+      const number = str(o.number, 60);
+      const qr = str(o.qr, 600);
+      if (qr && !/^https:\/\//.test(qr) && !/^\/pay\/[\w.-]+$/.test(qr)) {
+        throw new BadRequestException(`رابط رمز QR غير صالح في الحساب ${i + 1}`);
+      }
+      if (!number && !qr) throw new BadRequestException(`الحساب ${i + 1} يحتاج رقمًا أو رمز QR`);
+      const currency = str(o.currency, 3).toUpperCase();
+      return {
+        id,
+        provider,
+        number,
+        qr,
+        title: str(o.title, 80) || PAY_PROVIDERS[provider].name,
+        holder: str(o.holder, 80),
+        currency: (['YER', 'USD', 'SAR'].includes(currency) ? currency : '') as PayAccount['currency'],
+        note: str(o.note, 300),
+        enabled: o.enabled !== false,
+      };
+    });
+    const value = list as unknown as Prisma.InputJsonValue;
+    await this.prisma.platformSetting.upsert({
+      where: { key: 'pay.accounts' },
+      create: { key: 'pay.accounts', value },
+      update: { value },
+    });
+  }
+
   /** كل الإعدادات لعرضها في لوحة الإدارة. */
   async snapshot() {
     return {
@@ -108,6 +170,12 @@ export class PlatformSettingsService {
       currency: await this.currency(),
       templates: await this.templatePrices(),
       app: await this.appConfig(),
+      accounts: await this.payAccounts(true),
+      notify: {
+        emails: (await this.get<string>('notify.emails')) ?? '',
+        whatsapp: (await this.get<string>('notify.whatsapp')) ?? '',
+      },
+      providers: Object.entries(PAY_PROVIDERS).map(([id, p]) => ({ id, ...p })),
       methods: await Promise.all(
         PAYMENT_METHODS.map(async (m) => ({
           id: m.id,
@@ -137,6 +205,11 @@ export class PlatformSettingsService {
   async update(input: Record<string, unknown>): Promise<string[]> {
     const applied: string[] = [];
     for (const [key, raw] of Object.entries(input)) {
+      if (key === 'pay.accounts') {
+        await this.savePayAccounts(raw);
+        applied.push(key);
+        continue;
+      }
       // سعر قالب مدفوع: `tpl.<id>` — رقم غير سالب، أو فارغ للعودة إلى الافتراضي
       if (key.startsWith('tpl.')) {
         const id = key.slice(4);
