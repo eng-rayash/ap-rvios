@@ -12,6 +12,7 @@ import {
 /** معرّف المتجر في منصة المتاجر — نصّ قصير (رقم أو UUID). */
 const STORE_REF = /^[A-Za-z0-9_-]{1,64}$/;
 
+import { PAY_PROVIDERS } from '../shop-billing.constants';
 export class EnsureSubscriptionDto {
   @IsOptional()
   @IsString()
@@ -48,7 +49,7 @@ export class CreateShopInvoiceDto {
 
 export class SubmitProofDto {
   @IsOptional()
-  @IsIn(['kuraimi', 'jaib', 'paypal'])
+  @IsIn(Object.keys(PAY_PROVIDERS))
   method?: string;
 
   @IsString()

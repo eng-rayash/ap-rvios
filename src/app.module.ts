@@ -36,6 +36,7 @@ import { MerchantNotifier } from './modules/notify/merchant-notifier.service';
 import { StoreEmails } from './modules/notify/store-emails.service';
 import { PushService } from './modules/notify/push.service';
 import { SupportSessionController } from './modules/platform-admin/support-session.controller';
+import { PublicPostsController } from './modules/cms/posts/public-posts.controller';
 import { PlatformAlerts } from './modules/notify/platform-alerts.service';
 import { DevicesController, PlatformAlertsController } from './modules/notify/notify.controllers';
 import { LeadsService, PlatformLeadsController, PublicLeadsController } from './modules/leads/leads';
@@ -178,6 +179,7 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     SettingsController,
     DevicesController,
     SupportSessionController,
+    PublicPostsController,
     PlatformAlertsController,
     PublicLeadsController,
     PlatformLeadsController,

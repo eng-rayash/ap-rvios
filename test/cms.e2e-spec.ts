@@ -174,6 +174,18 @@ describe('محتوى الموقع الرئيسي (CMS)', () => {
       expect(res.body.publishedAt).not.toBeNull();
     });
 
+    it('المدونة العامة: المنشور يظهر للزائر بلا جلسة، والمسودة لا', async () => {
+      const list = await request(http).get('/api/v1/cms/public/posts').expect(200);
+      const hit = list.body.posts.find((p: { id: string }) => p.id === postId);
+      expect(hit).toMatchObject({ slug: 'test-post', category: { slug: expect.any(String) } });
+      expect(hit).not.toHaveProperty('companyId');
+      const one = await request(http).get('/api/v1/cms/public/posts/test-post').expect(200);
+      expect(one.body.content).toBe('المحتوى الكامل هنا');
+      await request(http).patch(`/api/v1/cms/posts/${postId}`).set('Authorization', `Bearer ${editorToken}`).send({ status: 0 }).expect(200);
+      await request(http).get('/api/v1/cms/public/posts/test-post').expect(404);
+      await request(http).patch(`/api/v1/cms/posts/${postId}`).set('Authorization', `Bearer ${editorToken}`).send({ status: 1 }).expect(200);
+    });
+
     it('شركة أخرى لا ترى تصنيف أو مقال الموقع', async () => {
       const res = await request(http)
         .get('/api/v1/cms/categories')
