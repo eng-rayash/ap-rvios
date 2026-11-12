@@ -19,7 +19,7 @@ const COPY_MAX = 600;
 const HIDDEN_KEY = /^(img:)?[\w./:@-]{1,160}$/;
 /** صورة قالب ← صورة التاجر: رابط https أو مسار محلي فقط */
 const IMAGE_URL = /^(https:\/\/|\/)[^\s"'<>]{1,600}$/;
-const MAX_ENTRIES = 80;
+const MAX_ENTRIES = 200;
 /** معرّف خط من قائمة منصة المتاجر — الخط نفسه يُحمَّل هناك، فمعرّف مجهول يعود لخط القالب */
 const FONT_ID = /^[a-z]{2,20}$/;
 const NETWORKS = new Set(['instagram', 'facebook', 'tiktok', 'snapchat', 'x', 'youtube', 'telegram', 'whatsapp']);
