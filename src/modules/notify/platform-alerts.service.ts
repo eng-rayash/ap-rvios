@@ -15,7 +15,7 @@ export interface AlertInput {
   kind: AlertKind;
   title: string;
   body?: string;
-  /** مسار داخل عزم سمارت: `/platform/requests` */
+  /** مسار داخل RVIOS OS: `/platform/requests` */
   link?: string;
   data?: Record<string, string | number | null>;
 }

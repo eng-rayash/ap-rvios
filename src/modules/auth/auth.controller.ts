@@ -146,6 +146,13 @@ export class AuthController {
     };
   }
 
+  /** تجديد رمز الجلسة قبل انتهائه — للتطبيقات عند الفتح (جلسة منزلقة) */
+  @Post('refresh')
+  @HttpCode(200)
+  refresh(@Tenant() ctx: TenantContext) {
+    return this.auth.refresh(ctx);
+  }
+
   /** تبديل الشركة النشطة (رمز جديد) — لمن ينتمي لأكثر من شركة. */
   @Post('switch')
   @HttpCode(200)

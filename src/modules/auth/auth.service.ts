@@ -13,6 +13,7 @@ import { TenantPrismaService } from '../../common/prisma/tenant-prisma.service';
 import { UserRole } from '../../common/tenant/tenant-context';
 import { normalizeArabic } from '../../common/text/normalize-arabic';
 import { DEMO_EMAIL, DEMO_SESSION, DEMO_WORKSPACE_SLUG } from '../demo/demo.constant';
+import { issuedBeforePasswordChange } from '../../common/tenant/tenant.guard';
 import { EmailCodesService } from './email-codes.service';
 import { verifyGoogleIdToken } from './google-id-token';
 
@@ -58,7 +59,9 @@ export class AuthService {
     });
     await this.codes.consume(user && !user.deletedAt ? user.id : undefined, 'verify', input.code);
     await this.prisma.user.update({ where: { id: user!.id }, data: { emailVerifiedAt: new Date() } });
-    return this.signIn(user!.id, false, input.companyId);
+    const session = await this.signIn(user!.id, false, input.companyId);
+    // الجهاز الذي أكّد الرمز صار موثوقًا: الدخول التالي منه بلا رمز طوال مدة الثقة
+    return { ...session, trustToken: await this.signTrust(user!.id) };
   }
 
   /**
@@ -168,6 +171,7 @@ export class AuthService {
     email: string;
     password: string;
     companyId?: string;
+    trustToken?: string;
   }) {
     const email = input.email.trim().toLowerCase();
 
@@ -220,7 +224,7 @@ export class AuthService {
       throw new UnauthorizedException('لا عضوية فعّالة في هذه الشركة');
     }
 
-    if (this.codes.enabled) {
+    if (this.codes.enabled && !(await this.isTrusted(input.trustToken, user))) {
       const sent = await this.codes.issue(user, 'verify');
       return { verificationRequired: true as const, email: user.email, sent };
     }
@@ -232,6 +236,8 @@ export class AuthService {
 
     return {
       accessToken: await this.signToken(user.id, membership.organizationId),
+      // الثقة تتجدّد مع كل دخول ناجح: من يستخدم جهازه باستمرار لا يُسأل عن رمز
+      trustToken: await this.signTrust(user.id),
       user: this.publicUser(user),
       company: membership.organization,
       companies: user.memberships.map((m) => ({
@@ -352,6 +358,41 @@ export class AuthService {
 
   private signToken(userId: string, companyId: string): Promise<string> {
     return this.jwt.signAsync({ sub: userId, companyId });
+  }
+
+  /**
+   * تجديد الجلسة قبل انتهائها — التطبيقات تستدعيه عند الفتح فلا يخرج مستخدم نشط.
+   * جلسة الدعم لا تتجدّد: مدتها القصيرة جزء من ضمانها، ولا العرض التجريبي.
+   */
+  async refresh(ctx: { userId: string; companyId: string; support?: boolean }) {
+    if (ctx.support) throw new UnauthorizedException('جلسة الدعم لا تُجدَّد — افتح جلسة جديدة');
+    const company = await this.prisma.organization.findUnique({ where: { id: ctx.companyId }, select: { workspaceSlug: true } });
+    if (company?.workspaceSlug === DEMO_WORKSPACE_SLUG) throw new UnauthorizedException('جلسة العرض لا تُجدَّد');
+    return { accessToken: await this.signToken(ctx.userId, ctx.companyId) };
+  }
+
+  /** مدة «الجهاز الموثوق» بالأيام — `AUTH_TRUSTED_DEVICE_DAYS`، افتراضيًا ٣٠، و0 يعطّلها */
+  private trustDays(): number {
+    const n = Number(process.env.AUTH_TRUSTED_DEVICE_DAYS ?? 30);
+    return Number.isFinite(n) && n > 0 ? Math.min(n, 180) : 0;
+  }
+
+  /** رمز الثقة: لا `companyId` فيه، فحارس الجلسات يرفضه لو قُدِّم رمزَ دخول */
+  private async signTrust(userId: string): Promise<string | undefined> {
+    const days = this.trustDays();
+    if (!days) return undefined;
+    return this.jwt.signAsync({ sub: userId, typ: 'trust' }, { expiresIn: `${days}d` });
+  }
+
+  /** موثوق إن كان رمزًا صادرًا لهذا المستخدم نفسه، لم ينتهِ، وبعد آخر تغيير لكلمة المرور */
+  private async isTrusted(token: string | undefined, user: { id: string; passwordChangedAt: Date | null }): Promise<boolean> {
+    if (!token || !this.trustDays()) return false;
+    try {
+      const p = await this.jwt.verifyAsync<{ sub?: string; typ?: string; iat?: number }>(token);
+      return p.typ === 'trust' && p.sub === user.id && !issuedBeforePasswordChange(p.iat, user.passwordChangedAt);
+    } catch {
+      return false;
+    }
   }
 
   /**

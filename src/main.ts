@@ -75,7 +75,7 @@ async function bootstrap() {
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port, '0.0.0.0');
 
-  // العرض التجريبي (صفحة «جرّب العرض» في AzmSmart): يُبنى تلقائيًا إن غاب أو قدُم، في
+  // العرض التجريبي (صفحة «جرّب العرض» في RVIOS OS): يُبنى تلقائيًا إن غاب أو قدُم، في
   // الخلفية بعد أن يبدأ الخادم بالرد — فلا خطوة يدوية بعد النشر. الاختبارات تتولّاه بنفسها.
   if (process.env.DEMO_AUTOSEED !== '0' && process.env.NODE_ENV !== 'test') {
     void (async () => {

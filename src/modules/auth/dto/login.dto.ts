@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsEmail, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class LoginDto {
   @IsEmail({}, { message: 'بريد إلكتروني غير صالح' })
@@ -17,4 +17,13 @@ export class LoginDto {
   @IsOptional()
   @IsUUID()
   companyId?: string;
+
+  /**
+   * «جهاز موثوق»: رمز يصدره الخادم بعد تأكيد رمز البريد. يُعفي من رمز البريد
+   * في الدخول التالي على الجهاز نفسه لمدة محددة — كلمة المرور تبقى مطلوبة.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  trustToken?: string;
 }

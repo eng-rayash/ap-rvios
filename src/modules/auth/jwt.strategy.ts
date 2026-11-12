@@ -50,8 +50,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    * لا استعلام هنا: التحقّق من العضوية في `TenantGuard`، وإبقاؤه
    * هناك يجعل مسارًا بلا حارس يفشل صراحةً بدل أن يمرّ بصلاحية ضمنية.
    */
-  validate(payload: JwtPayload): JwtPayload {
-    if (!payload?.sub || !payload?.companyId) {
+  validate(payload: JwtPayload & { typ?: string }): JwtPayload {
+    if (!payload?.sub || !payload?.companyId || payload.typ) {
       throw new UnauthorizedException('رمز ناقص الحمولة');
     }
     return { sub: payload.sub, companyId: payload.companyId, iat: payload.iat, ...(payload.support === true ? { support: true } : {}) };

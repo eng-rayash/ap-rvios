@@ -107,6 +107,42 @@ describe('رموز التحقق بالبريد', () => {
     expect(ok.body.companies.length).toBe(1);
   });
 
+  it('الجهاز الموثوق: بعد تأكيد الرمز يدخل بكلمة المرور وحدها، والرمز لا يصلح جلسةً ولا لغير صاحبه', async () => {
+    const { a } = await registered();
+    const first = await post('verify', { email: a.email, code: lastCode(a.email) }).expect(200);
+    const trust = first.body.trustToken as string;
+    expect(trust).toBeTruthy();
+
+    // الدخول التالي على الجهاز نفسه: جلسة فورًا بلا رسالة، وثقة متجدّدة
+    const before = sent.length;
+    const r = await post('login', { email: a.email, password: a.password, trustToken: trust }).expect(200);
+    expect(r.body.accessToken).toBeTruthy();
+    expect(r.body.trustToken).toBeTruthy();
+    expect(sent.length).toBe(before);
+
+    // كلمة المرور تبقى مطلوبة
+    await post('login', { email: a.email, password: 'wrong-password', trustToken: trust }).expect(401);
+
+    // رمز الثقة ليس رمز دخول
+    await request(http).get('/api/v1/auth/me').set('Authorization', `Bearer ${trust}`).expect(401);
+
+    // ولا يصلح لحساب آخر: يُطلب الرمز
+    const other = await registered();
+    await expireCooldown(other.a.email);
+    const o = await post('login', { email: other.a.email, password: other.a.password, trustToken: trust }).expect(200);
+    expect(o.body.verificationRequired).toBe(true);
+
+    // تجديد الجلسة برمز صالح
+    const ref = await request(http).post('/api/v1/auth/refresh').set('Authorization', `Bearer ${r.body.accessToken}`).expect(200);
+    expect(ref.body.accessToken).toBeTruthy();
+
+    // تغيير كلمة المرور يسقط الثقة القديمة
+    await prisma.user.update({ where: { email: a.email }, data: { passwordChangedAt: new Date(Date.now() + 2000) } });
+    await expireCooldown(a.email);
+    const after = await post('login', { email: a.email, password: a.password, trustToken: trust }).expect(200);
+    expect(after.body.verificationRequired).toBe(true);
+  });
+
   it('خمس محاولات خاطئة تحرق الرمز ولو جاء الصحيح بعدها', async () => {
     const { a } = await registered();
     const good = lastCode(a.email);

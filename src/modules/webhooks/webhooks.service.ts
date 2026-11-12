@@ -181,7 +181,7 @@ export class WebhooksService implements OnModuleInit, OnModuleDestroy {
   async sendTest(ctx: TenantContext, id: string) {
     const h = await this.find(ctx, id);
     const d = await this.enqueue(ctx.companyId, h.id, 'webhook.test', {
-      message: 'هذا حدث تجريبي من عزم سمارت',
+      message: 'هذا حدث تجريبي من RVIOS OS',
       webhookId: h.id,
     });
     await this.attempt(d.id);
@@ -296,7 +296,7 @@ export class WebhooksService implements OnModuleInit, OnModuleDestroy {
         signal: AbortSignal.timeout(DELIVERY_TIMEOUT_MS),
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent': 'AzmSmart-Webhooks/1.0',
+          'User-Agent': 'RVIOS-Webhooks/1.0',
           'X-Azm-Event': d.event,
           'X-Azm-Delivery': d.id,
           'X-Azm-Signature': signPayload(d.webhook.secret, body, t),
