@@ -26,7 +26,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { MAX_IMAGE_BYTES, UploadedBinary, UploadsService } from '../../uploads/uploads.service';
 import { StoreAppearanceService } from './store-appearance.service';
 import { StoreRequestsService } from './store-requests.service';
-import { CreateStoreDto, SaveAppearanceDto, SetStoreStatusDto, UpdateStoreDto } from './stores.dto';
+import { CreateStoreDto, SaveAppearanceDto, SaveStoreExtrasDto, SetStoreStatusDto, UpdateStoreDto } from './stores.dto';
 import { StoresService } from './stores.service';
 
 /** متاجر الشركة — قراءة لأي عضو، والكتابة للإدارة فما فوق. */
@@ -92,6 +92,17 @@ export class StoresController {
     return this.appearance.save(ctx, storeId, dto);
   }
 
+  /** شريط الإعلان والسياسات وزر واتساب ووصف البحث — بلا قفل الأسبوع */
+  @RequireRole(UserRole.Admin)
+  @Put(':storeId/extras')
+  saveExtras(
+    @Tenant() ctx: TenantContext,
+    @Param('storeId', ParseUUIDPipe) storeId: string,
+    @Body() dto: SaveStoreExtrasDto,
+  ) {
+    return this.appearance.saveExtras(ctx, storeId, dto);
+  }
+
   @RequireRole(UserRole.Admin)
   @Delete(':storeId')
   remove(
@@ -152,6 +163,15 @@ export class PlatformStoresController {
     @Body() dto: SaveAppearanceDto,
   ) {
     return this.appearance.teamSave(storeId, ctx, dto);
+  }
+
+  @Put(':storeId/extras')
+  saveExtras(
+    @Platform() ctx: PlatformContext,
+    @Param('storeId', ParseUUIDPipe) storeId: string,
+    @Body() dto: SaveStoreExtrasDto,
+  ) {
+    return this.appearance.teamSaveExtras(storeId, ctx, dto);
   }
 
   /** رفع صورة إلى مجلد متجر — لمحرر الشكل في لوحة المنصة */

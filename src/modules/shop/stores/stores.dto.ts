@@ -120,6 +120,18 @@ export class AppearanceProductDto {
   @IsOptional() @IsString() @MaxLength(600) image?: string;
 }
 
+/**
+ * إضافات المتجر خارج التصميم: شريط الإعلان، وصفحات السياسات، وزر واتساب العائم، ووصف محركات البحث.
+ * محتوى يتغيّر كثيرًا (عرض الأسبوع، سياسة الشحن) فلا يخضع لقفل الأسبوع الذي يخضع له «شكل المتجر».
+ */
+export class SaveStoreExtrasDto {
+  @IsOptional() @IsObject() announce?: { on?: boolean; text?: string; link?: string; color?: string };
+  @IsOptional() @IsObject() policies?: Record<string, string>;
+  @IsOptional() waFloat?: boolean;
+  @IsOptional() @IsString() @MaxLength(70) seoTitle?: string;
+  @IsOptional() @IsString() @MaxLength(170) seoDescription?: string;
+}
+
 export class SaveAppearanceDto {
   @IsOptional() @IsString() @Length(2, 60) name?: string;
   @IsOptional() @IsString() @MaxLength(600) logo?: string;

@@ -179,6 +179,30 @@ describe('عمليات المنصة', () => {
     });
   });
 
+  describe('إضافات المتجر (الإعلان، السياسات، واتساب، البحث)', () => {
+    it('تُحفظ بلا قفل، وتبقى بعد حفظ الشكل، وتصل لواجهة المتجر، والمدخلات تُرشَّح', async () => {
+      const put = (body: object) => request(http).put(api(`/shop/stores/${storeId}/extras`)).set(as(merchant.token)).send(body);
+      const r = await put({
+        announce: { on: true, text: 'توصيل مجاني فوق ٢٠٠', link: 'javascript:alert(1)', color: '#0F766E' },
+        policies: { shipping: 'نوصل خلال ٣ أيام', hack: 'x' },
+        waFloat: true,
+        seoTitle: 'متجر العمليات — عطور',
+      }).expect(200);
+      expect(r.body.extras.announce).toEqual({ on: true, text: 'توصيل مجاني فوق ٢٠٠', link: '', color: '#0F766E' });
+      expect(r.body.extras.policies).toEqual({ shipping: 'نوصل خلال ٣ أيام' });
+
+      // حفظ «شكل المتجر» يقفل أسبوعًا ولا يمسح الإضافات
+      await request(http).put(api(`/shop/stores/${storeId}/appearance`)).set(as(merchant.token)).send({ copy: { h1: 'أهلًا' } }).expect(200);
+      const store = await prisma.shopStore.findUniqueOrThrow({ where: { id: storeId } });
+      expect((store.appearance as { extras?: { waFloat?: boolean } }).extras?.waFloat).toBe(true);
+
+      // والإضافات تبقى قابلة للتعديل رغم القفل
+      await put({ waFloat: false }).expect(200);
+      const pub = await request(http).get(api(`/shop/storefront/${store.slug}/catalogue`)).expect(200);
+      expect(pub.body.store.appearance.extras).toMatchObject({ waFloat: false, seoTitle: 'متجر العمليات — عطور', announce: { on: true } });
+    });
+  });
+
   describe('إدارة المتجر من لوحة المنصة', () => {
     it('بطاقة المتجر الكاملة وتغيير القالب المدفوع يمنحه للمتجر', async () => {
       const o = await request(http).get(api(`/platform/shop-stores/${storeId}/overview`)).set(as(staff.token)).expect(200);

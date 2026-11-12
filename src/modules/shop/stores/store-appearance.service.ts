@@ -1,11 +1,12 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { TenantPrismaService } from '../../../common/prisma/tenant-prisma.service';
 import { PlatformContext, TenantContext, UserRole } from '../../../common/tenant/tenant-context';
 import { CatalogService } from '../catalog/catalog.service';
 import { StorefrontCache } from '../public/storefront-cache.service';
 import { ShopStoreAccessService } from '../shop-store-access.service';
-import { SaveAppearanceDto } from './stores.dto';
+import { SaveAppearanceDto, SaveStoreExtrasDto } from './stores.dto';
 import { StoresService, storeView } from './stores.service';
 
 /**
@@ -25,6 +26,22 @@ const NETWORKS = new Set(['instagram', 'facebook', 'tiktok', 'snapchat', 'x', 'y
 const PLACEMENTS = new Set(['info', 'footer', 'both']);
 /** اسم مستخدم أو رابط https — بلا مسافات ولا علامات تكسر الرابط */
 const SOCIAL_VALUE = /^(https:\/\/[^\s"'<>]{4,300}|@?[\w.\-+]{1,80})$/;
+/** صفحات السياسات التي تظهر في تذييل كل متجر */
+const POLICY_KEYS = ['shipping', 'returns', 'privacy', 'terms'] as const;
+
+export interface StoreExtras {
+  announce?: { on: boolean; text: string; link: string; color: string };
+  policies?: Record<string, string>;
+  waFloat?: boolean;
+  seoTitle?: string;
+  seoDescription?: string;
+}
+
+const extrasOf = (appearance: unknown): StoreExtras | null => {
+  const e = (appearance as { extras?: unknown } | null)?.extras;
+  return e && typeof e === 'object' ? (e as StoreExtras) : null;
+};
+
 /** بعد كل حفظ من التاجر يُقفل التعديل أسبوعًا، إلا أن يفتحه فريق RVIOS */
 const LOCK_MS = 7 * 24 * 60 * 60_000;
 
@@ -95,12 +112,50 @@ export class StoreAppearanceService {
     const saved = await this.prisma.forTenant(ctx.companyId).shopStore.update({
       where: { id: storeId },
       data: {
-        appearance: { copy, hidden, images, fonts, social },
+        // الإضافات (الإعلان، السياسات…) تُحفظ من مسارها — حفظ الشكل لا يمسحها
+        appearance: { copy, hidden, images, fonts, social, ...(extrasOf(store.appearance) ? { extras: extrasOf(store.appearance) } : {}) },
         ...(asTeam ? {} : { appearanceLockedUntil: new Date(Date.now() + LOCK_MS) }),
       },
     });
     this.cache.purge(saved.slug);
     return { store: storeView(saved, plan) };
+  }
+
+  /** شريط الإعلان والسياسات وزر واتساب ووصف البحث — بلا قفل الأسبوع */
+  async saveExtras(ctx: TenantContext, storeId: string, dto: SaveStoreExtrasDto) {
+    const { store, plan } = await this.access.require(ctx, storeId, { writable: true });
+    const prev = extrasOf(store.appearance) ?? {};
+    const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+    const next: StoreExtras = { ...prev };
+    if (dto.announce) {
+      const link = str(dto.announce.link, 300);
+      next.announce = {
+        on: dto.announce.on !== false,
+        text: str(dto.announce.text, 140),
+        link: /^(https:\/\/|\/)[^\s"'<>]*$/.test(link) ? link : '',
+        color: typeof dto.announce.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(dto.announce.color) ? dto.announce.color : '',
+      };
+    }
+    if (dto.policies) {
+      next.policies = Object.fromEntries(
+        POLICY_KEYS.flatMap((k) => (typeof dto.policies?.[k] === 'string' && dto.policies[k].trim() ? [[k, dto.policies[k].trim().slice(0, 6000)]] : [])),
+      );
+    }
+    if (typeof dto.waFloat === 'boolean') next.waFloat = dto.waFloat;
+    if (dto.seoTitle !== undefined) next.seoTitle = str(dto.seoTitle, 70);
+    if (dto.seoDescription !== undefined) next.seoDescription = str(dto.seoDescription, 170);
+
+    const appearance = { ...((store.appearance as Record<string, unknown> | null) ?? {}), extras: next };
+    const saved = await this.prisma.forTenant(ctx.companyId).shopStore.update({
+      where: { id: storeId },
+      data: { appearance: appearance as unknown as Prisma.InputJsonValue },
+    });
+    this.cache.purge(saved.slug);
+    return { store: storeView(saved, plan), extras: next };
+  }
+
+  async teamSaveExtras(storeId: string, staff: PlatformContext, dto: SaveStoreExtrasDto) {
+    return this.saveExtras(await this.asOwner(storeId, staff), storeId, dto);
   }
 
   /** فريق المنصة يعمل داخل شركة المتجر بصلاحية مالكها — لهذا المتجر وحده */
