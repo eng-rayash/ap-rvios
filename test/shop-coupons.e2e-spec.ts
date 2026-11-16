@@ -187,6 +187,19 @@ describe('قسائم الخصم', () => {
     expect(storeB).toBeTruthy();
   });
 
+  it('جاهزية المتجر تُحسب من بياناته: القسيمة والطلب منجزان، والشعار ناقص', async () => {
+    const r = await request(http).get(`/api/v1/shop/stores/${storeId}/readiness`).set(auth(a.token)).expect(200);
+    const by = Object.fromEntries((r.body.tasks as { key: string; done: boolean }[]).map((t) => [t.key, t.done]));
+    expect(by.coupon).toBe(true);
+    expect(by.firstOrder).toBe(true);
+    expect(by.delivery).toBe(true); // رسم توصيل عام
+    expect(by.logo).toBe(false);
+    expect(by.products).toBe(false); // منتج واحد
+    expect(r.body.total).toBe(14);
+    expect(r.body.percent).toBe(Math.round((r.body.done / 14) * 100));
+    await request(http).get(`/api/v1/shop/stores/${storeId}/readiness`).set(auth(b.token)).expect(404);
+  });
+
   it('واجهة المتجر تعلن وجود قسيمة مفعّلة، واللوحة تعرض أثر كل قسيمة', async () => {
     const r = await request(http).get(`/api/v1/shop/storefront/${slug}/catalogue`).expect(200);
     expect(r.body.coupons).toBe(true);

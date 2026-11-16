@@ -24,6 +24,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 
 import { MAX_IMAGE_BYTES, UploadedBinary, UploadsService } from '../../uploads/uploads.service';
+import { StoreReadinessService } from './store-readiness.service';
 import { StoreAppearanceService } from './store-appearance.service';
 import { StoreRequestsService } from './store-requests.service';
 import { CreateStoreDto, SaveAppearanceDto, SaveStoreExtrasDto, SetStoreStatusDto, UpdateStoreDto } from './stores.dto';
@@ -36,6 +37,7 @@ export class StoresController {
     private readonly stores: StoresService,
     private readonly appearance: StoreAppearanceService,
     private readonly requests: StoreRequestsService,
+    private readonly readinessSvc: StoreReadinessService,
   ) {}
 
   @Get()
@@ -54,6 +56,12 @@ export class StoresController {
       return { slug: '', ok: false, reason: 'اكتب اسم متجرك', suggestion: null };
     }
     return this.stores.checkSlug(q, except);
+  }
+
+  /** «جاهزية المتجر»: مهام محسوبة من بياناته ونسبة الإنجاز */
+  @Get(':storeId/readiness')
+  readiness(@Tenant() ctx: TenantContext, @Param('storeId', ParseUUIDPipe) storeId: string) {
+    return this.readinessSvc.readiness(ctx, storeId);
   }
 
   @Get(':storeId')

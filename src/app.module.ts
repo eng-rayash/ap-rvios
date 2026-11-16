@@ -75,6 +75,7 @@ import { PublicRateLimit } from './modules/shop/public/rate-limit';
 import { ShopStoreAccessService } from './modules/shop/shop-store-access.service';
 import { PlatformStoresController, StoresController } from './modules/shop/stores/stores.controller';
 import { StoreAppearanceService } from './modules/shop/stores/store-appearance.service';
+import { StoreReadinessService } from './modules/shop/stores/store-readiness.service';
 import { StoreRequestsService } from './modules/shop/stores/store-requests.service';
 import { StorefrontCache } from './modules/shop/public/storefront-cache.service';
 import { PlatformUsersController } from './modules/platform-admin/platform-users.controller';
@@ -227,6 +228,7 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     ShopStoreAccessService,
     StoresService,
     StoreAppearanceService,
+    StoreReadinessService,
     StoreRequestsService,
     StorefrontCache,
     CatalogService,
