@@ -45,6 +45,8 @@ export class PlaceOrderDto {
   @IsOptional() @IsString() @MaxLength(300) note?: string;
   @IsOptional() @IsUUID() zoneId?: string;
   @IsOptional() @IsString() @MaxLength(12) payMethod?: string;
+  /** رمز الخصم — يُتحقق منه ويُحسب على الخادم */
+  @IsOptional() @IsString() @MaxLength(24) coupon?: string;
 }
 
 export class AdvanceOrderDto {

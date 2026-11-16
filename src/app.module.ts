@@ -65,6 +65,8 @@ import { AnalyticsService } from './modules/shop/analytics/analytics.service';
 import { CatalogController } from './modules/shop/catalog/catalog.controller';
 import { CatalogService } from './modules/shop/catalog/catalog.service';
 import { OrdersController } from './modules/shop/orders/orders.controller';
+import { CouponsController } from './modules/shop/coupons/coupons.controller';
+import { CouponsService } from './modules/shop/coupons/coupons.service';
 import { OrdersService } from './modules/shop/orders/orders.service';
 import { ZonesService } from './modules/shop/orders/zones.service';
 import { ShopPublicController } from './modules/shop/public/public.controller';
@@ -165,6 +167,7 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     PlatformStoresController,
     CatalogController,
     OrdersController,
+    CouponsController,
     AnalyticsController,
     ShopPublicController,
     CategoriesController,
@@ -229,6 +232,7 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     CatalogService,
     OrdersService,
     ZonesService,
+    CouponsService,
     AnalyticsService,
     ShopPublicService,
     PublicRateLimit,

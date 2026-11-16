@@ -930,6 +930,7 @@ model ShopStore {
   products     ShopProduct[]
   customers    ShopCustomer[]
   zones        ShopDeliveryZone[]
+  coupons       ShopCoupon[]
   orders       ShopOrder[]
   aiConversations AiConversation[]
   aiUsage      AiUsage[]
@@ -1110,6 +1111,34 @@ model ShopDeliveryZone {
   @@map("shop_delivery_zones")
 }
 
+/// قسائم الخصم — يتحقق الخادم منها عند الطلب (لا يُوثق بما يرسله المتصفح).
+/// kind: percent (نسبة من المجموع، بسقف اختياري) · amount (مبلغ ثابت) · ship (توصيل مجاني)
+model ShopCoupon {
+  id          String    @id @default(uuid())
+  companyId   String    @map("company_id")
+  storeId     String    @map("store_id")
+  code        String
+  kind        String    @default("percent")
+  value       Int       @default(0)
+  minSubtotal Int       @default(0) @map("min_subtotal")
+  maxDiscount Int       @default(0) @map("max_discount")
+  usageLimit  Int       @default(0) @map("usage_limit")
+  perCustomer Int       @default(0) @map("per_customer")
+  used        Int       @default(0)
+  startsAt    DateTime? @map("starts_at")
+  endsAt      DateTime? @map("ends_at")
+  active      Boolean   @default(true)
+  note        String    @default("")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  store ShopStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, code])
+  @@index([storeId, active])
+  @@map("shop_coupons")
+}
+
 model ShopOrder {
   id         String  @id @default(uuid())
   companyId  String  @map("company_id")
@@ -1134,6 +1163,9 @@ model ShopOrder {
   subtotal    Int
   deliveryFee Int @default(0) @map("delivery_fee")
   total       Int
+  /// قسيمة الخصم المطبّقة (نصًّا: تبقى لو حُذفت القسيمة) وقيمة الخصم المخصومة من الإجمالي
+  couponCode  String @default("") @map("coupon_code")
+  discount    Int    @default(0)
   /// 0=قيد التأكيد · 1=مؤكد · 2=مكتمل · 3=ملغى
   status      Int @default(0)
 

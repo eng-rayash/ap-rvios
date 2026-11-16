@@ -3,6 +3,7 @@ import { ForbiddenException, GoneException, Injectable, NotFoundException } from
 import { Prisma, ShopProduct, ShopStore } from '@prisma/client';
 
 import { TenantPrismaService } from '../../../common/prisma/tenant-prisma.service';
+import { CouponsService } from '../coupons/coupons.service';
 import { ShopReviewsService } from '../reviews/reviews.service';
 import { normalizeDomain } from '../domain.util';
 import { ShopStoreAccessService } from '../shop-store-access.service';
@@ -38,6 +39,7 @@ export class ShopPublicService {
     private readonly prisma: TenantPrismaService,
     private readonly access: ShopStoreAccessService,
     private readonly reviews: ShopReviewsService,
+    private readonly coupons: CouponsService,
   ) {}
 
   /** يجلب متجرًا نشطًا بالرابط. الموقوف ٤١٠، والمجهول ٤٠٤، والقديم تحويل. */
@@ -219,6 +221,8 @@ export class ShopPublicService {
 
     return {
       store: this.publicStore(store, plan),
+      // حقل رمز الخصم في السلة يظهر فقط حين يملك المتجر قسيمة مفعّلة
+      coupons: await this.coupons.hasActive(store.id),
       delivery: {
         // الرسم العام يبقى: متجر لم يُعرّف مناطق يعمل كما كان
         fee: store.deliveryFee,
@@ -399,6 +403,7 @@ export class ShopPublicService {
 
     return {
       store: this.publicStore(store, plan),
+      coupons: await this.coupons.hasActive(store.id),
       zones: zones.map((z) => ({ id: z.id, name: z.name, fee: z.fee, freeOver: z.freeOver })),
       products,
       // `count` لمنتجات التصنيف نفسه، و`total` له ولفروعه — الأعلى يظهر ما دام

@@ -57,6 +57,7 @@ export function deliveryFor(
 
 import { symbolOf } from '../shop.constants';
 import { PushService } from '../../notify/push.service';
+import { CouponsService } from '../coupons/coupons.service';
 @Injectable()
 export class OrdersService {
   constructor(
@@ -66,6 +67,7 @@ export class OrdersService {
     private readonly merchant: MerchantNotifier,
     private readonly emails: StoreEmails,
     private readonly push: PushService,
+    private readonly coupons: CouponsService,
   ) {}
 
   /** يُطلق حدث خطاف بعد اكتمال العملية — لا ينتظر ولا يرمي. */
@@ -196,7 +198,6 @@ export class OrdersService {
 
       const subtotal = priced.reduce((a, l) => a + l.price * l.qty, 0);
       const delivery = deliveryFor(store, subtotal, zone);
-      const total = subtotal + delivery;
 
       // العميل يُعرَّف داخل المعاملة: لو فشل الطلب فلا يبقى عميل شبح.
       // المفتاح يُوحَّد إلى E.164: العميل نفسه يكتب 0777123456 ثم 777123456
@@ -234,6 +235,14 @@ export class OrdersService {
         }
       }
 
+      // القسيمة بعد معرفة العميل (حدّ الاستخدام لكل رقم) وقبل إنشاء الطلب؛
+      // فشلها يُرجع المعاملة كلها فلا يُحجز استخدام لطلب لم يُسجَّل
+      const coupon = dto.coupon?.trim()
+        ? await this.coupons.consume(tx, store, dto.coupon, subtotal, delivery, customerId)
+        : null;
+      const discount = coupon?.discount ?? 0;
+      const total = Math.max(0, subtotal + delivery - discount);
+
       const order = await tx.shopOrder.create({
         data: {
           companyId,
@@ -251,6 +260,8 @@ export class OrdersService {
           note: dto.note ?? '',
           subtotal,
           deliveryFee: delivery,
+          couponCode: coupon?.code ?? '',
+          discount,
           total,
           status: OrderStatus.Wait,
           items: {
@@ -295,6 +306,8 @@ export class OrdersService {
         priced,
         subtotal,
         delivery,
+        discount,
+        coupon: coupon?.code ?? '',
         total,
         zone: zone?.name ?? '',
         payMethod: method,
@@ -441,6 +454,8 @@ export class OrdersService {
           });
         }
         for (const productId of touched) await recalcStock(tx, productId);
+        // الطلب الملغى لا يستهلك القسيمة
+        await this.coupons.release(tx, storeId, order.couponCode);
       }
       return tx.shopOrder.update({
         where: { id },
@@ -560,6 +575,8 @@ export class OrdersService {
       payNote: awaiting ? store.payNote : '',
       subtotal: o.subtotal,
       deliveryFee: o.deliveryFee,
+      couponCode: o.couponCode,
+      discount: o.discount,
       total: o.total,
       // المعرّف لتقييم السطر بعد الاستلام — لا يكشف شيئًا لا يملكه صاحب الرقم
       items: o.items.map((i) => ({ id: i.id, productId: i.productId, name: i.name, variant: i.variant, price: i.price, qty: i.qty })),

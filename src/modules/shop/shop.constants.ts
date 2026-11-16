@@ -81,14 +81,20 @@ export interface PlanLimits {
   variantsPerProduct: number | null;
   subcategories: boolean;
   extraThemes: boolean;
+  /** قسائم الخصم المفعّلة في وقت واحد */
+  coupons: number | null;
 }
 
 export const PLAN_LIMITS: Record<string, PlanLimits> = {
-  // كما في صفحة أسعار منصة المتاجر: المجانية ١٠ منتجات، الاحترافية ٥٠٠، الأعمال بلا حد
-  basic: { products: 10, imagesPerProduct: 1, variantsPerProduct: 5, subcategories: false, extraThemes: false },
-  plus: { products: 500, imagesPerProduct: 4, variantsPerProduct: 30, subcategories: true, extraThemes: false },
-  pro: { products: null, imagesPerProduct: 10, variantsPerProduct: null, subcategories: true, extraThemes: true },
+  // كما في صفحة أسعار منصة المتاجر: المجانية ١٠ منتجات، الاحترافية ٥٠٠، الأعمال بلا حد.
+  // القسائم في كل الباقات — حتى المجانية (٣ مفعّلة معًا): عند غيرنا هي ميزة مدفوعة
+  basic: { products: 10, imagesPerProduct: 1, variantsPerProduct: 5, subcategories: false, extraThemes: false, coupons: 3 },
+  plus: { products: 500, imagesPerProduct: 4, variantsPerProduct: 30, subcategories: true, extraThemes: false, coupons: null },
+  pro: { products: null, imagesPerProduct: 10, variantsPerProduct: null, subcategories: true, extraThemes: true, coupons: null },
 };
+
+/** أقصى عدد للقسائم المحفوظة في المتجر (مفعّلة وغير مفعّلة) */
+export const MAX_COUPONS = 200;
 
 export const PLAN_NAME: Record<string, string> = {
   basic: 'المجانية',

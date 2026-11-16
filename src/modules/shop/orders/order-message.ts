@@ -47,6 +47,10 @@ export function orderMessage(
     parts.push(`المجموع: ${money(order.subtotal)} ${cur}`);
     parts.push(`التوصيل (${order.zoneName}): مجاني`);
   }
+  if (order.discount > 0) {
+    if (order.deliveryFee <= 0 && !order.zoneName) parts.push(`المجموع: ${money(order.subtotal)} ${cur}`);
+    parts.push(`الخصم${order.couponCode ? ` (${order.couponCode})` : ''}: -${money(order.discount)} ${cur}`);
+  }
   parts.push(`الإجمالي: ${money(order.total)} ${cur}`);
 
   // طريقة الدفع تُذكر دائمًا — هي أول ما يسأل عنه التاجر

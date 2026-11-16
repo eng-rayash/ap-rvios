@@ -24,6 +24,8 @@ import { ShopPublicService } from './public.service';
 import { StoresService } from '../stores/stores.service';
 import { ShopReviewsService } from '../reviews/reviews.service';
 import { SubmitReviewDto } from '../reviews/reviews.dto';
+import { CheckCouponDto } from '../coupons/coupons.dto';
+import { CouponsService } from '../coupons/coupons.service';
 
 /**
  * واجهة المتجر العامة — كل المسارات `@Public()` عمدًا: الزائر القادم من رابط
@@ -41,6 +43,7 @@ export class ShopPublicController {
     private readonly uploads: UploadsService,
     private readonly stores: StoresService,
     private readonly reviews: ShopReviewsService,
+    private readonly coupons: CouponsService,
   ) {}
 
   /** متاجر حقيقية للصفحة الرئيسية — قبل `:slug` كي لا يُلتقط اسمًا لمتجر. */
@@ -131,6 +134,8 @@ export class ShopPublicController {
       ref: r.order.ref,
       subtotal: r.subtotal,
       delivery: r.delivery,
+      discount: r.discount,
+      coupon: r.coupon,
       total: r.total,
       zone: r.zone,
       payMethod: r.payMethod,
@@ -140,6 +145,17 @@ export class ShopPublicController {
       wa: r.wa,
       message: `سُجّل طلبك برقم ${r.order.ref}`,
     };
+  }
+
+  /**
+   * معاينة رمز الخصم في السلة — لا يحجز شيئًا، والطلب يعيد التحقق والحساب.
+   * حدّ معدّل كي لا يُخمَّن الرمز بالتجربة.
+   */
+  @Post(':slug/coupons/check')
+  async couponCheck(@Param('slug') slug: string, @Body() dto: CheckCouponDto, @Ip() ip: string) {
+    const { store } = await this.publicShop.live(slug);
+    this.limit.check(`coupon:${ip}:${store.id}`, 20, 10 * 60_000);
+    return this.coupons.check(store, dto.code, dto.subtotal ?? 0, dto.delivery ?? 0);
   }
 
   /**

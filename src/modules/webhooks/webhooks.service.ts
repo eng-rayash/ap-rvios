@@ -54,6 +54,8 @@ export function orderPayload(o: OrderWithItems, store: Pick<ShopStore, 'id' | 's
     currency: symbolOf(store.country),
     subtotal: o.subtotal,
     deliveryFee: o.deliveryFee,
+    couponCode: o.couponCode,
+    discount: o.discount,
     total: o.total,
     items: o.items.map((i) => ({
       productId: i.productId,
