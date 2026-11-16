@@ -401,7 +401,7 @@ export class OrdersService {
       orders: rows.map((o) => ({
         ref: o.ref, createdAt: o.createdAt, status: o.status, payMethod: o.payMethod, payStatus: o.payStatus,
         custName: o.custName, custPhone: o.custPhone, custAddress: o.custAddress, zoneName: o.zoneName, note: o.note,
-        subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total,
+        subtotal: o.subtotal, deliveryFee: o.deliveryFee, couponCode: o.couponCode, discount: o.discount, total: o.total,
         items: o.items.map((i) => ({ name: i.name, qty: i.qty })),
       })),
       truncated: rows.length === ORDERS_EXPORT_MAX,
