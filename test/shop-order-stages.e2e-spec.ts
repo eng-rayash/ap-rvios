@@ -102,6 +102,35 @@ describe('مراحل الطلب', () => {
     await move(o.id, { status: 9 }).expect(400);
   });
 
+  it('طلب يدوي: مؤكد ومدفوع، برسم توصيل وخصم من التاجر، ويحجز المخزون، ويبيع المخفي', async () => {
+    const hidden = await request(http).post(`/api/v1/shop/stores/${storeId}/products`).set(auth())
+      .send({ name: 'منتج للطلب الهاتفي', price: 5000, qty: 3, live: false }).expect(201);
+    const r = await request(http).post(`/api/v1/shop/stores/${storeId}/orders`).set(auth()).send({
+      lines: [{ id: productId, qty: 2 }, { id: hidden.body.id, qty: 1 }],
+      name: 'عميل الهاتف', phone: '0777000555', address: 'تعز', deliveryFee: 1500, extraDiscount: 500, paid: true, payMethod: 'bank',
+    }).expect(201);
+    expect(r.body.status).toBe(1);
+    expect(r.body.payStatus).toBe(3);
+    expect(r.body.payMethod).toBe('bank');
+    expect(r.body.subtotal).toBe(25000);
+    expect(r.body.deliveryFee).toBe(1500);
+    expect(r.body.discount).toBe(500);
+    expect(r.body.total).toBe(26000);
+    expect(r.body.source).toBe('manual');
+    const h = await request(http).get(`/api/v1/shop/stores/${storeId}/products/${hidden.body.id}`).set(auth()).expect(200);
+    expect(h.body.qty).toBe(2);
+    // بلا اسم ولا جوال يُرفض، والمخزون الناقص يُرفض
+    await request(http).post(`/api/v1/shop/stores/${storeId}/orders`).set(auth()).send({ lines: [{ id: productId, qty: 1 }] }).expect(400);
+    await request(http).post(`/api/v1/shop/stores/${storeId}/orders`).set(auth()).send({ lines: [{ id: hidden.body.id, qty: 9 }], name: 'س' }).expect(409);
+    // واجهة المتجر لا تبيع المخفي
+    await request(http).post(`/api/v1/shop/storefront/${slug}/orders`).send({ lines: [{ id: hidden.body.id, qty: 1 }] }).expect(400);
+    // يدوي غير مؤكد يبدأ «قيد التأكيد»
+    const w = await request(http).post(`/api/v1/shop/stores/${storeId}/orders`).set(auth()).send({ lines: [{ id: productId, qty: 1 }], name: 'آخر', confirm: false }).expect(201);
+    expect(w.body.status).toBe(0);
+    await request(http).patch(`/api/v1/shop/stores/${storeId}/orders/${w.body.id}`).set(auth()).send({ status: 3 }).expect(200);
+    await request(http).patch(`/api/v1/shop/stores/${storeId}/orders/${r.body.id}`).set(auth()).send({ status: 3 }).expect(200);
+  });
+
   it('المبيعات تحسب الطلب قيد التجهيز والمشحون، والعدّاد يعرف المرحلتين', async () => {
     const o = await place();
     await move(o.id, { status: 1 }).expect(200);

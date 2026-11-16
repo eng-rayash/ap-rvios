@@ -12,7 +12,7 @@ import {
 
 import { RequireRole, Tenant } from '../../../common/tenant/tenant.guard';
 import { TenantContext, UserRole } from '../../../common/tenant/tenant-context';
-import { AdvanceOrderDto, OrderPaymentDto, ZoneDto } from './orders.dto';
+import { AdvanceOrderDto, ManualOrderDto, OrderPaymentDto, ZoneDto } from './orders.dto';
 import { OrdersService } from './orders.service';
 import { ZonesService } from './zones.service';
 
@@ -64,6 +64,17 @@ export class OrdersController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.orders.get(ctx, storeId, id);
+  }
+
+  /** طلب يدوي (هاتف، واتساب، المحل) — يحجز المخزون ويحسب القسيمة كطلب المتجر */
+  @RequireRole(UserRole.Employee)
+  @Post('orders')
+  createManual(
+    @Tenant() ctx: TenantContext,
+    @Param('storeId', ParseUUIDPipe) storeId: string,
+    @Body() dto: ManualOrderDto,
+  ) {
+    return this.orders.createManual(ctx, storeId, dto);
   }
 
   @RequireRole(UserRole.Employee)

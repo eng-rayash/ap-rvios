@@ -1167,6 +1167,8 @@ model ShopOrder {
   couponCode  String @default("") @map("coupon_code")
   /// سبب الإلغاء — يراه العميل في تتبّع طلبه
   cancelReason String @default("") @map("cancel_reason")
+  /// مصدر الطلب: store (واجهة المتجر) · manual (أدخله التاجر لطلب هاتفي أو من واتساب)
+  source       String @default("store")
   discount    Int    @default(0)
   /// 0=قيد التأكيد · 1=مؤكد · 2=مكتمل · 3=ملغى
   status      Int @default(0)

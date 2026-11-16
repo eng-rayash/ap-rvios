@@ -22,7 +22,7 @@ import {
   PayStatus,
   toE164,
 } from '../shop.constants';
-import { PlaceOrderDto } from './orders.dto';
+import { ManualOrderDto, PlaceOrderDto } from './orders.dto';
 import { waLink } from './order-message';
 
 const REF_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // بلا محارف ملتبسة
@@ -56,7 +56,7 @@ export function deliveryFor(
   return fee;
 }
 
-import { symbolOf } from '../shop.constants';
+import { PAY_METHODS, symbolOf } from '../shop.constants';
 import { PushService } from '../../notify/push.service';
 import { CouponsService } from '../coupons/coupons.service';
 @Injectable()
@@ -115,7 +115,36 @@ export class OrdersService {
     throw new ConflictException('تعذّر توليد رقم مرجعي فريد');
   }
 
-  private async placeOnce(store: ShopStore, dto: PlaceOrderDto) {
+  /**
+   * طلب يدويّ من لوحة التاجر أو التطبيق. لا إشعار «طلب جديد» للتاجر نفسه (هو من أدخله)،
+   * لكن webhooks تُبلَّغ كأي طلب ليصل لأنظمته الأخرى.
+   */
+  async createManual(ctx: TenantContext, storeId: string, dto: ManualOrderDto) {
+    const { store } = await this.access.require(ctx, storeId, { writable: true });
+    if (!dto.name?.trim() && !dto.phone?.trim()) throw new BadRequestException('اكتب اسم العميل أو جواله');
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const placed = await this.placeOnce(store, dto, {
+          deliveryFee: dto.deliveryFee,
+          extraDiscount: dto.extraDiscount ?? 0,
+          paid: dto.paid === true,
+          confirm: dto.confirm !== false,
+        });
+        this.notify(store, 'order.created', placed.order);
+        return this.view(placed.order, store);
+      } catch (err) {
+        if ((err as { code?: string }).code === 'P2002' && attempt < 3) continue;
+        throw err;
+      }
+    }
+    throw new ConflictException('تعذّر توليد رقم مرجعي فريد');
+  }
+
+  private async placeOnce(
+    store: ShopStore,
+    dto: PlaceOrderDto,
+    manual?: { deliveryFee?: number; extraDiscount: number; paid: boolean; confirm: boolean },
+  ) {
     const storeId = store.id;
     const companyId = store.companyId;
 
@@ -131,7 +160,8 @@ export class OrdersService {
 
     // طريقة الدفع تُقصر على ما أعلنه التاجر فعلًا
     const allowed = store.payMethods.split(',').map((m) => m.trim()).filter(Boolean);
-    const method = dto.payMethod && allowed.includes(dto.payMethod) ? dto.payMethod : 'cod';
+    // اليدوي: التاجر يختار من كل الطرق المعروفة (قد يدفع العميل في المحل بطريقة لا يعرضها المتجر)
+    const method = dto.payMethod && (allowed.includes(dto.payMethod) || (manual && dto.payMethod in PAY_METHODS)) ? dto.payMethod : 'cod';
 
     // دمج الأسطر المكرّرة قبل فحص المخزون؛ المفتاح يشمل الخيار
     const wanted = new Map<string, { id: string; variantId: string | null; qty: number }>();
@@ -159,7 +189,8 @@ export class OrdersService {
 
       for (const { id, variantId, qty } of wanted.values()) {
         const product = await tx.shopProduct.findFirst({
-          where: { id, storeId, live: true },
+          // اليدوي يبيع حتى المنتج المخفي من الواجهة (يُطلب هاتفيًا)
+          where: { id, storeId, ...(manual ? {} : { live: true }) },
         });
         if (!product) throw new BadRequestException('منتج غير متاح في هذا المتجر');
 
@@ -198,7 +229,7 @@ export class OrdersService {
       }
 
       const subtotal = priced.reduce((a, l) => a + l.price * l.qty, 0);
-      const delivery = deliveryFor(store, subtotal, zone);
+      const delivery = manual?.deliveryFee ?? deliveryFor(store, subtotal, zone);
 
       // العميل يُعرَّف داخل المعاملة: لو فشل الطلب فلا يبقى عميل شبح.
       // المفتاح يُوحَّد إلى E.164: العميل نفسه يكتب 0777123456 ثم 777123456
@@ -241,7 +272,7 @@ export class OrdersService {
       const coupon = dto.coupon?.trim()
         ? await this.coupons.consume(tx, store, dto.coupon, subtotal, delivery, customerId)
         : null;
-      const discount = coupon?.discount ?? 0;
+      const discount = Math.min(subtotal + delivery, (coupon?.discount ?? 0) + (manual?.extraDiscount ?? 0));
       const total = Math.max(0, subtotal + delivery - discount);
 
       const order = await tx.shopOrder.create({
@@ -254,7 +285,7 @@ export class OrdersService {
           zoneName: zone?.name ?? '',
           payMethod: method,
           // «عند الاستلام» لا ينتظر إيصالًا؛ وغيره يبدأ بانتظار الدفع
-          payStatus: method === 'cod' ? PayStatus.None : PayStatus.Await,
+          payStatus: manual?.paid ? PayStatus.Paid : method === 'cod' ? PayStatus.None : PayStatus.Await,
           custName: dto.name ?? '',
           custPhone: rawPhone,
           custAddress: dto.address ?? '',
@@ -264,7 +295,8 @@ export class OrdersService {
           couponCode: coupon?.code ?? '',
           discount,
           total,
-          status: OrderStatus.Wait,
+          status: manual?.confirm ? OrderStatus.Confirmed : OrderStatus.Wait,
+          source: manual ? 'manual' : 'store',
           items: {
             create: priced.map((l) => ({
               companyId,

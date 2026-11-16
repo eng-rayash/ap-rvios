@@ -49,6 +49,21 @@ export class PlaceOrderDto {
   @IsOptional() @IsString() @MaxLength(24) coupon?: string;
 }
 
+/**
+ * طلب يدخله التاجر (هاتف، واتساب، زبون في المحل) — نفس محرك طلب المتجر: الأسعار من القاعدة،
+ * والمخزون يُحجز، والقسيمة تُحسب في الخادم. وما يخص التاجر وحده هنا.
+ */
+export class ManualOrderDto extends PlaceOrderDto {
+  /** رسم توصيل يحدده التاجر (يتجاوز رسم المنطقة) */
+  @IsOptional() @IsInt() @Min(0) @Max(100_000_000) deliveryFee?: number;
+  /** خصم يدوي إضافي بالمبلغ */
+  @IsOptional() @IsInt() @Min(0) @Max(100_000_000) extraDiscount?: number;
+  /** الدفع مُستلم فعلًا (نقدًا في المحل أو تحويلًا وصل) */
+  @IsOptional() @IsBoolean() paid?: boolean;
+  /** يبدأ «مؤكدًا» (الافتراضي) — التاجر هو من أخذ الطلب */
+  @IsOptional() @IsBoolean() confirm?: boolean;
+}
+
 export class AdvanceOrderDto {
   /** 1=مؤكد · 4=قيد التجهيز · 5=تم الشحن · 2=مكتمل · 3=ملغى */
   @IsInt()
