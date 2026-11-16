@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { TenantPrismaService } from '../../../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../../../common/tenant/tenant-context';
 import { ShopStoreAccessService } from '../shop-store-access.service';
-import { OrderStatus } from '../shop.constants';
+import { OrderStatus, SOLD_STATUSES } from '../shop.constants';
 
 const DAY = 86_400_000;
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -31,7 +31,7 @@ export class AnalyticsService {
     private readonly access: ShopStoreAccessService,
   ) {}
 
-  private static readonly SOLD = [OrderStatus.Confirmed, OrderStatus.Done];
+  private static readonly SOLD = SOLD_STATUSES;
 
   // ═══ الزيارات (عامّ) ═════════════════════════════════════
   /**
@@ -180,7 +180,7 @@ export class AnalyticsService {
     const sold = orders.filter((o) => isSold(o.status));
     const revenue = sold.reduce((a, o) => a + o.total, 0);
     const totalVisits = series.reduce((a, s) => a + s.visits, 0);
-    const byStatus: Record<string, number> = { 0: 0, 1: 0, 2: 0, 3: 0 };
+    const byStatus: Record<string, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
     const byPay: Record<string, { orders: number; revenue: number }> = {};
     const byZone: Record<string, { orders: number; revenue: number }> = {};
     for (const o of orders) {

@@ -50,10 +50,13 @@ export class PlaceOrderDto {
 }
 
 export class AdvanceOrderDto {
-  /** 1=مؤكد · 2=مكتمل · 3=ملغى */
+  /** 1=مؤكد · 4=قيد التجهيز · 5=تم الشحن · 2=مكتمل · 3=ملغى */
   @IsInt()
-  @IsIn([1, 2, 3])
+  @IsIn([1, 2, 3, 4, 5])
   status!: number;
+
+  /** سبب الإلغاء (يراه العميل في تتبّع طلبه) */
+  @IsOptional() @IsString() @MaxLength(200) reason?: string;
 }
 
 export class OrderPaymentDto {

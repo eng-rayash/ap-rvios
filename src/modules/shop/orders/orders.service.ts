@@ -17,6 +17,7 @@ import { ShopStoreAccessService } from '../shop-store-access.service';
 import {
   ORDER_LABEL,
   ORDER_NEXT,
+  SOLD_STATUSES,
   OrderStatus,
   PayStatus,
   toE164,
@@ -352,7 +353,7 @@ export class OrdersService {
       db.shopOrder.groupBy({ by: ['status'], where: this.filter(storeId, undefined, q), _count: { _all: true } }),
     ]);
 
-    const counts: Record<string, number> = { 0: 0, 1: 0, 2: 0, 3: 0 };
+    const counts: Record<string, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
     for (const g of grouped) counts[g.status] = g._count._all;
 
     return {
@@ -417,7 +418,7 @@ export class OrdersService {
   }
 
   /** تغيير الحالة مع احترام الانتقالات؛ الإلغاء يعيد المخزون. */
-  async advance(ctx: TenantContext, storeId: string, id: string, to: OrderStatus) {
+  async advance(ctx: TenantContext, storeId: string, id: string, to: OrderStatus, reason = '') {
     const { store } = await this.access.require(ctx, storeId, { writable: true });
     const db = this.prisma.forTenant(ctx.companyId);
     const order = await db.shopOrder.findFirst({
@@ -459,7 +460,8 @@ export class OrdersService {
       }
       return tx.shopOrder.update({
         where: { id },
-        data: { status: to },
+        // سبب الإلغاء يراه العميل في صفحة تتبّع طلبه
+        data: { status: to, ...(to === OrderStatus.Off ? { cancelReason: reason.trim().slice(0, 200) } : {}) },
         include: { items: true },
       });
     });
@@ -508,7 +510,7 @@ export class OrdersService {
       where: {
         storeId,
         customerId: { not: null },
-        status: { in: [OrderStatus.Confirmed, OrderStatus.Done] },
+        status: { in: SOLD_STATUSES },
       },
       _sum: { total: true },
     });
@@ -578,6 +580,7 @@ export class OrdersService {
       couponCode: o.couponCode,
       discount: o.discount,
       total: o.total,
+      cancelReason: o.status === OrderStatus.Off ? o.cancelReason : '',
       // المعرّف لتقييم السطر بعد الاستلام — لا يكشف شيئًا لا يملكه صاحب الرقم
       items: o.items.map((i) => ({ id: i.id, productId: i.productId, name: i.name, variant: i.variant, price: i.price, qty: i.qty })),
       createdAt: o.createdAt,

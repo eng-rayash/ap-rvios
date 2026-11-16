@@ -74,7 +74,7 @@ export class OrdersController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AdvanceOrderDto,
   ) {
-    return this.orders.advance(ctx, storeId, id, dto.status);
+    return this.orders.advance(ctx, storeId, id, dto.status, dto.reason ?? '');
   }
 
   @RequireRole(UserRole.DeptManager)

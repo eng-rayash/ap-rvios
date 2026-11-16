@@ -17,17 +17,36 @@ export enum StoreStatus {
 export enum OrderStatus {
   Wait = 0,
   Confirmed = 1,
+  /** «مكتمل» = وصل للعميل — منه وحده يُفتح التقييم */
   Done = 2,
   Off = 3,
+  /** أُضيفتا بعد الأربع الأولى، فالأرقام لا تتبع الترتيب: التسلسل في ORDER_FLOW */
+  Preparing = 4,
+  Shipped = 5,
 }
+
+/** ترتيب المراحل كما يراها التاجر والعميل (الإلغاء خارجها) */
+export const ORDER_FLOW: OrderStatus[] = [
+  OrderStatus.Wait,
+  OrderStatus.Confirmed,
+  OrderStatus.Preparing,
+  OrderStatus.Shipped,
+  OrderStatus.Done,
+];
+
+/** طلبات حقيقية تُحسب مبيعات: كل ما بعد التأكيد وقبل/مع الاكتمال */
+export const SOLD_STATUSES: OrderStatus[] = [OrderStatus.Confirmed, OrderStatus.Preparing, OrderStatus.Shipped, OrderStatus.Done];
 
 /**
  * الانتقالات المسموحة — لا رجوع، ولا خروج من مكتمل أو ملغى.
  * المخزون حُجز وقت الطلب، فالإلغاء وحده يعيده والتأكيد لا يخصم ثانية.
  */
 export const ORDER_NEXT: Record<OrderStatus, OrderStatus[]> = {
+  // المراحل اختيارية: متجر صغير يقفز من «مؤكد» إلى «مكتمل» مباشرة
   [OrderStatus.Wait]: [OrderStatus.Confirmed, OrderStatus.Off],
-  [OrderStatus.Confirmed]: [OrderStatus.Done, OrderStatus.Off],
+  [OrderStatus.Confirmed]: [OrderStatus.Preparing, OrderStatus.Shipped, OrderStatus.Done, OrderStatus.Off],
+  [OrderStatus.Preparing]: [OrderStatus.Shipped, OrderStatus.Done, OrderStatus.Off],
+  [OrderStatus.Shipped]: [OrderStatus.Done, OrderStatus.Off],
   [OrderStatus.Done]: [],
   [OrderStatus.Off]: [],
 };
@@ -37,6 +56,8 @@ export const ORDER_LABEL: Record<OrderStatus, string> = {
   [OrderStatus.Confirmed]: 'مؤكد',
   [OrderStatus.Done]: 'مكتمل',
   [OrderStatus.Off]: 'ملغى',
+  [OrderStatus.Preparing]: 'قيد التجهيز',
+  [OrderStatus.Shipped]: 'تم الشحن',
 };
 
 /**

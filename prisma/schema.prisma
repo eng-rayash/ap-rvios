@@ -1165,6 +1165,8 @@ model ShopOrder {
   total       Int
   /// قسيمة الخصم المطبّقة (نصًّا: تبقى لو حُذفت القسيمة) وقيمة الخصم المخصومة من الإجمالي
   couponCode  String @default("") @map("coupon_code")
+  /// سبب الإلغاء — يراه العميل في تتبّع طلبه
+  cancelReason String @default("") @map("cancel_reason")
   discount    Int    @default(0)
   /// 0=قيد التأكيد · 1=مؤكد · 2=مكتمل · 3=ملغى
   status      Int @default(0)
