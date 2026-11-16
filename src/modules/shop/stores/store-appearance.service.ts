@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { TenantPrismaService } from '../../../common/prisma/tenant-prisma.service';
@@ -26,6 +26,30 @@ const NETWORKS = new Set(['instagram', 'facebook', 'tiktok', 'snapchat', 'x', 'y
 const PLACEMENTS = new Set(['info', 'footer', 'both']);
 /** اسم مستخدم أو رابط https — بلا مسافات ولا علامات تكسر الرابط */
 const SOCIAL_VALUE = /^(https:\/\/[^\s"'<>]{4,300}|@?[\w.\-+]{1,80})$/;
+/**
+ * أكواد التتبع الإعلانية — المعرّف وحده لا الكود: واجهة المتجر تبني كود كل منصة بنفسها،
+ * فلا يحقن التاجر (أو من سرق حسابه) سكربتًا. نمط صارم لكل منصة.
+ */
+export const TRACKERS = {
+  ga4: { re: /^G-[A-Z0-9]{4,16}$/, name: 'Google Analytics' },
+  gtm: { re: /^GTM-[A-Z0-9]{4,12}$/, name: 'Google Tag Manager' },
+  meta: { re: /^\d{8,20}$/, name: 'Meta Pixel' },
+  tiktok: { re: /^[A-Z0-9]{10,30}$/, name: 'TikTok Pixel' },
+  snap: { re: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, name: 'Snap Pixel' },
+  x: { re: /^[a-z0-9]{4,10}$/, name: 'X Pixel' },
+  gsc: { re: /^[A-Za-z0-9_-]{20,80}$/, name: 'Google Search Console' },
+} as const;
+export type TrackerKey = keyof typeof TRACKERS;
+
+/** يقبل المعرّف كما يلصقه التاجر: بمسافات، أو وسم meta كاملًا لـ Search Console */
+export function normTracker(key: TrackerKey, raw: string): string {
+  let v = raw.trim();
+  if (key === 'gsc') v = /content=["']([^"']+)["']/i.exec(v)?.[1] ?? v;
+  if (key === 'ga4' || key === 'gtm' || key === 'tiktok') v = v.toUpperCase();
+  if (key === 'snap' || key === 'x') v = v.toLowerCase();
+  return v.replace(/\s+/g, '');
+}
+
 /** صفحات السياسات التي تظهر في تذييل كل متجر */
 const POLICY_KEYS = ['shipping', 'returns', 'privacy', 'terms'] as const;
 
@@ -35,6 +59,8 @@ export interface StoreExtras {
   waFloat?: boolean;
   seoTitle?: string;
   seoDescription?: string;
+  /** معرّفات التتبع: ga4 · gtm · meta · tiktok · snap · x · gsc */
+  tracking?: Partial<Record<TrackerKey, string>>;
 }
 
 const extrasOf = (appearance: unknown): StoreExtras | null => {
@@ -144,6 +170,19 @@ export class StoreAppearanceService {
     if (typeof dto.waFloat === 'boolean') next.waFloat = dto.waFloat;
     if (dto.seoTitle !== undefined) next.seoTitle = str(dto.seoTitle, 70);
     if (dto.seoDescription !== undefined) next.seoDescription = str(dto.seoDescription, 170);
+    if (dto.tracking) {
+      // يُرسَل ما تغيّر فقط؛ الفارغ يحذف المعرّف، والخاطئ يُرفض باسم المنصة (لا يُسقط بصمت)
+      const t: Partial<Record<TrackerKey, string>> = { ...(prev.tracking ?? {}) };
+      for (const [k, raw] of Object.entries(dto.tracking)) {
+        if (!(k in TRACKERS)) continue;
+        const key = k as TrackerKey;
+        const v = typeof raw === 'string' ? normTracker(key, raw) : '';
+        if (!v) { delete t[key]; continue; }
+        if (!TRACKERS[key].re.test(v)) throw new BadRequestException(`معرّف ${TRACKERS[key].name} غير صحيح`);
+        t[key] = v;
+      }
+      next.tracking = t;
+    }
 
     const appearance = { ...((store.appearance as Record<string, unknown> | null) ?? {}), extras: next };
     const saved = await this.prisma.forTenant(ctx.companyId).shopStore.update({

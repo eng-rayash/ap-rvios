@@ -130,6 +130,8 @@ export class SaveStoreExtrasDto {
   @IsOptional() waFloat?: boolean;
   @IsOptional() @IsString() @MaxLength(70) seoTitle?: string;
   @IsOptional() @IsString() @MaxLength(170) seoDescription?: string;
+  /** معرّفات التتبع (ga4, gtm, meta, tiktok, snap, x, gsc) — فارغ يحذف */
+  @IsOptional() @IsObject() tracking?: Record<string, string>;
 }
 
 export class SaveAppearanceDto {

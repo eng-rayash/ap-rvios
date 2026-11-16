@@ -201,6 +201,26 @@ describe('عمليات المنصة', () => {
       const pub = await request(http).get(api(`/shop/storefront/${store.slug}/catalogue`)).expect(200);
       expect(pub.body.store.appearance.extras).toMatchObject({ waFloat: false, seoTitle: 'متجر العمليات — عطور', announce: { on: true } });
     });
+
+    it('أكواد التتبع: المعرّف وحده بنمط كل منصة، والفارغ يحذف، والخاطئ يُرفض', async () => {
+      const put = (body: object) => request(http).put(api(`/shop/stores/${storeId}/extras`)).set(as(merchant.token)).send(body);
+      const r = await put({
+        tracking: {
+          ga4: ' g-ab12cd34ef ', meta: '123456789012345', tiktok: 'c4abcdefgh12345678',
+          gsc: '<meta name="google-site-verification" content="AbCdEfGhIjKlMnOpQrStUvWxYz_0123456789" />',
+          evil: '<script>alert(1)</script>',
+        },
+      }).expect(200);
+      expect(r.body.extras.tracking).toEqual({
+        ga4: 'G-AB12CD34EF', meta: '123456789012345', tiktok: 'C4ABCDEFGH12345678', gsc: 'AbCdEfGhIjKlMnOpQrStUvWxYz_0123456789',
+      });
+      const bad = await put({ tracking: { meta: '<script>' } }).expect(400);
+      expect(JSON.stringify(bad.body)).toContain('Meta Pixel');
+      await put({ tracking: { tiktok: '' } }).expect(200);
+      const store = await prisma.shopStore.findUniqueOrThrow({ where: { id: storeId } });
+      const pub = await request(http).get(api(`/shop/storefront/${store.slug}/catalogue`)).expect(200);
+      expect(pub.body.store.appearance.extras.tracking).toEqual({ ga4: 'G-AB12CD34EF', meta: '123456789012345', gsc: 'AbCdEfGhIjKlMnOpQrStUvWxYz_0123456789' });
+    });
   });
 
   describe('إدارة المتجر من لوحة المنصة', () => {
