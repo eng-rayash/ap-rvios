@@ -84,4 +84,21 @@ describe('تقرير الزوار', () => {
     const o = await request(http).get(`/api/v1/shop/stores/${storeId}/overview`).set(auth()).expect(200);
     expect(JSON.stringify(o.body)).toContain('"visits":2');
   });
+
+  it('التقارير المفصّلة: فترة مخصّصة، والمبيعات تُقارن بالسابقة، والمنتجات والعملاء والقسائم والمخزون', async () => {
+    const o = await request(http).post(`/api/v1/shop/storefront/${slug}/orders`).send({ lines: [{ id: productId, qty: 2 }], name: 'هند', phone: '777000321' }).expect(201);
+    const id = (await request(http).get(`/api/v1/shop/stores/${storeId}/orders?q=${o.body.ref}`).set(auth()).expect(200)).body.orders[0].id;
+    await request(http).patch(`/api/v1/shop/stores/${storeId}/orders/${id}`).set(auth()).send({ status: 1 }).expect(200);
+    const today = new Date().toISOString().slice(0, 10);
+    const r = await request(http).get(`/api/v1/shop/stores/${storeId}/reports?from=${today}&to=${today}`).set(auth()).expect(200);
+    expect(r.body.range).toMatchObject({ from: today, to: today, days: 1 });
+    expect(r.body.sales).toMatchObject({ revenue: 18000, orders: 1, averageOrder: 18000, visitors: 2, conversion: 50 });
+    expect(r.body.sales.change.revenue).toBeNull();
+    expect(r.body.products.top[0]).toMatchObject({ name: 'عطر العود', qty: 2, revenue: 18000 });
+    expect(r.body.customers).toMatchObject({ buyers: 1, newBuyers: 1 });
+    expect(r.body.orders.byStatus).toEqual({ 1: 1 });
+    expect(r.body.inventory).toMatchObject({ products: 1, units: 1 });
+    await request(http).get(`/api/v1/shop/stores/${storeId}/reports?from=2026-12-01&to=2026-01-01`).set(auth()).expect(400);
+    await request(http).get(`/api/v1/shop/stores/${storeId}/reports?from=2024-01-01&to=2026-01-01`).set(auth()).expect(400);
+  });
 });

@@ -77,6 +77,7 @@ import { ShopCartsController, ShopCartsService } from './modules/shop/carts/cart
 import { LoyaltyController, LoyaltyService } from './modules/shop/loyalty/loyalty';
 import { PlatformKycController, ShopKycController, ShopKycService } from './modules/shop/kyc/kyc';
 import { ShopCarriersController, ShopCarriersService } from './modules/shop/carriers/carriers';
+import { ShopReportsController, ShopReportsService } from './modules/shop/analytics/reports';
 import { CustomerAccountController, CustomerAuth, CustomerMessenger, CustomerNotices, CustomerWallet, CustomerWalletController } from './modules/shop/customers/customer-accounts';
 import { ShopReturnsService } from './modules/shop/returns/returns.service';
 import { OrdersService } from './modules/shop/orders/orders.service';
@@ -190,6 +191,7 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     LoyaltyController,
     ShopKycController,
     ShopCarriersController,
+    ShopReportsController,
     CustomerAccountController,
     CustomerWalletController,
     PlatformKycController,
@@ -268,6 +270,7 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     LoyaltyService,
     ShopKycService,
     ShopCarriersService,
+    ShopReportsService,
     CustomerMessenger,
     CustomerAuth,
     CustomerNotices,
