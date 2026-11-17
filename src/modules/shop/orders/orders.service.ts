@@ -60,6 +60,7 @@ import { PAY_METHODS, symbolOf } from '../shop.constants';
 import { PushService } from '../../notify/push.service';
 import { CouponsService } from '../coupons/coupons.service';
 import { ShopCartsService } from '../carts/carts';
+import { LoyaltyService } from '../loyalty/loyalty';
 @Injectable()
 export class OrdersService {
   constructor(
@@ -71,6 +72,7 @@ export class OrdersService {
     private readonly push: PushService,
     private readonly coupons: CouponsService,
     private readonly carts: ShopCartsService,
+    private readonly loyalty: LoyaltyService,
   ) {}
 
   /** يُطلق حدث خطاف بعد اكتمال العملية — لا ينتظر ولا يرمي. */
@@ -131,6 +133,7 @@ export class OrdersService {
           extraDiscount: dto.extraDiscount ?? 0,
           paid: dto.paid === true,
           confirm: dto.confirm !== false,
+          pointsUsed: dto.pointsUsed ?? 0,
         });
         this.notify(store, 'order.created', placed.order);
         return this.view(placed.order, store);
@@ -145,7 +148,7 @@ export class OrdersService {
   private async placeOnce(
     store: ShopStore,
     dto: PlaceOrderDto,
-    manual?: { deliveryFee?: number; extraDiscount: number; paid: boolean; confirm: boolean },
+    manual?: { deliveryFee?: number; extraDiscount: number; paid: boolean; confirm: boolean; pointsUsed?: number },
   ) {
     const storeId = store.id;
     const companyId = store.companyId;
@@ -276,7 +279,9 @@ export class OrdersService {
       const coupon = dto.coupon?.trim()
         ? await this.coupons.consume(tx, store, dto.coupon, subtotal, delivery, customerId)
         : null;
-      const discount = Math.min(subtotal + delivery, (coupon?.discount ?? 0) + (manual?.extraDiscount ?? 0));
+      const points = manual?.pointsUsed ?? 0;
+      if (points > 0 && !customerId) throw new BadRequestException('اكتب جوال العميل لصرف رصيد مكافآته');
+      const discount = Math.min(subtotal + delivery, (coupon?.discount ?? 0) + (manual?.extraDiscount ?? 0) + points);
       const total = Math.max(0, subtotal + delivery - discount);
 
       const order = await tx.shopOrder.create({
@@ -318,6 +323,7 @@ export class OrdersService {
         include: { items: true },
       });
 
+      if (points > 0 && customerId) await this.loyalty.redeem(tx, storeId, companyId, customerId, points, order.id, order.ref);
       // سلة الرقم نفسه صارت طلبًا
       await this.carts.recover(tx, storeId, phoneKey, order.id);
 
@@ -498,6 +504,8 @@ export class OrdersService {
         // الطلب الملغى لا يستهلك القسيمة
         await this.coupons.release(tx, storeId, order.couponCode);
       }
+      // المكافآت: نسبة المتجر من إجمالي الطلب لرصيد العميل عند الاكتمال
+      if (to === OrderStatus.Done) await this.loyalty.earn(tx, order, store.loyaltyRate);
       return tx.shopOrder.update({
         where: { id },
         // سبب الإلغاء يراه العميل في صفحة تتبّع طلبه
@@ -622,6 +630,8 @@ export class OrdersService {
       discount: o.discount,
       total: o.total,
       cancelReason: o.status === OrderStatus.Off ? o.cancelReason : '',
+      // رصيد المكافآت لصاحب الطلب — يراه من رابط طلبه
+      points: store.loyaltyRate > 0 && o.customerId ? (await this.prisma.shopCustomer.findUnique({ where: { id: o.customerId }, select: { points: true } }))?.points ?? 0 : null,
       // المعرّف لتقييم السطر بعد الاستلام — لا يكشف شيئًا لا يملكه صاحب الرقم
       items: o.items.map((i) => ({ id: i.id, productId: i.productId, name: i.name, variant: i.variant, price: i.price, qty: i.qty })),
       createdAt: o.createdAt,

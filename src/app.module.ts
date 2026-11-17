@@ -74,6 +74,7 @@ import { OptionSetsController, OptionSetsService } from './modules/shop/catalog/
 import { ShopSectionsController, ShopSectionsService } from './modules/shop/sections/sections';
 import { ShopTrashController, ShopTrashService } from './modules/shop/catalog/trash';
 import { ShopCartsController, ShopCartsService } from './modules/shop/carts/carts';
+import { LoyaltyController, LoyaltyService } from './modules/shop/loyalty/loyalty';
 import { ShopReturnsService } from './modules/shop/returns/returns.service';
 import { OrdersService } from './modules/shop/orders/orders.service';
 import { ZonesService } from './modules/shop/orders/zones.service';
@@ -183,6 +184,7 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     ShopSectionsController,
     ShopTrashController,
     ShopCartsController,
+    LoyaltyController,
     AnalyticsController,
     ShopPublicController,
     CategoriesController,
@@ -255,6 +257,7 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     ShopSectionsService,
     ShopTrashService,
     ShopCartsService,
+    LoyaltyService,
     AnalyticsService,
     ShopPublicService,
     PublicRateLimit,

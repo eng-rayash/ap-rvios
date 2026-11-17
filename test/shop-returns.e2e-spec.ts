@@ -119,6 +119,38 @@ describe('المرتجعات', () => {
     expect(r.body.carts[0].recoveredOrderId).toBeTruthy();
   });
 
+  it('المكافآت: ٪ من الطلب المكتمل للعميل مرة واحدة، تُسحب بالإرجاع، وتُصرف في الطلب اليدوي، ويراها العميل', async () => {
+    await request(http).patch(`/api/v1/shop/stores/${storeId}`).set(auth()).send({ loyaltyRate: 5 }).expect(200);
+    const o = await request(http).post(`/api/v1/shop/storefront/${slug}/orders`).send({ lines: [{ id: productId, qty: 2 }], name: 'وفاء', phone: '777000888' }).expect(201);
+    const id = (await request(http).get(`/api/v1/shop/stores/${storeId}/orders?q=${o.body.ref}`).set(auth()).expect(200)).body.orders[0].id;
+    await request(http).patch(`/api/v1/shop/stores/${storeId}/orders/${id}`).set(auth()).send({ status: 1 }).expect(200);
+    await request(http).patch(`/api/v1/shop/stores/${storeId}/orders/${id}`).set(auth()).send({ status: 2 }).expect(200);
+    const cs = await request(http).get(`/api/v1/shop/stores/${storeId}/customers`).set(auth()).expect(200);
+    const c = (cs.body.customers as { id: string; phone: string; points: number }[]).find((x) => x.phone.endsWith('777000888'))!;
+    expect(c.points).toBe(1000); // ٥٪ من ٢٠٬٠٠٠
+    const t = await request(http).get(`/api/v1/shop/storefront/${slug}/orders/${o.body.ref}`).expect(200);
+    expect(t.body.points).toBe(1000);
+
+    // صرف ٦٠٠ في طلب يدوي، ولا يُصرف أكثر من الرصيد
+    await request(http).post(`/api/v1/shop/stores/${storeId}/orders`).set(auth()).send({ lines: [{ id: productId, qty: 1 }], phone: '0777000888', pointsUsed: 5000 }).expect(400);
+    const m = await request(http).post(`/api/v1/shop/stores/${storeId}/orders`).set(auth()).send({ lines: [{ id: productId, qty: 1 }], phone: '0777000888', pointsUsed: 600 }).expect(201);
+    expect(m.body.discount).toBe(600);
+    let h = await request(http).get(`/api/v1/shop/stores/${storeId}/customers/${c.id}/points`).set(auth()).expect(200);
+    expect(h.body.customer.points).toBe(400);
+
+    // إرجاع الطلب الأول يسحب ما كُسب منه بقدر المتبقي
+    await request(http).post(`/api/v1/shop/stores/${storeId}/returns`).set(auth()).send({ orderId: id, complete: true }).expect(201);
+    h = await request(http).get(`/api/v1/shop/stores/${storeId}/customers/${c.id}/points`).set(auth()).expect(200);
+    expect(h.body.customer.points).toBe(0);
+    expect(h.body.history.map((x: { kind: string }) => x.kind)).toEqual(['revoke', 'redeem', 'earn']);
+
+    await request(http).post(`/api/v1/shop/stores/${storeId}/customers/${c.id}/points`).set(auth()).send({ amount: 250, note: 'هدية' }).expect(201);
+    await request(http).post(`/api/v1/shop/stores/${storeId}/customers/${c.id}/points`).set(auth()).send({ amount: -999 }).expect(400);
+    await request(http).post(`/api/v1/shop/stores/${storeId}/customers/${c.id}/points`).set(auth(other.token)).send({ amount: 5 }).expect(404);
+    await request(http).patch(`/api/v1/shop/stores/${storeId}/orders/${m.body.id}`).set(auth()).send({ status: 3 }).expect(200);
+    await request(http).patch(`/api/v1/shop/stores/${storeId}`).set(auth()).send({ loyaltyRate: 0 }).expect(200);
+  });
+
   it('التاجر يسجّل مرتجعًا مكتملًا فورًا بلا إعادة مخزون، والرفض يظهر للعميل بملاحظته', async () => {
     const o = await doneOrder(1);
     await request(http).post(`/api/v1/shop/stores/${storeId}/returns`).set(auth()).send({ orderId: o.id }).expect(409); // مؤكد فقط

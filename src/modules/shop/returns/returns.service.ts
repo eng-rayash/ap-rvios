@@ -7,6 +7,7 @@ import { PushService } from '../../notify/push.service';
 import { recalcStock } from '../catalog/catalog.service';
 import { ShopStoreAccessService } from '../shop-store-access.service';
 import { OrderStatus } from '../shop.constants';
+import { LoyaltyService } from '../loyalty/loyalty';
 import { CreateReturnDto, RequestReturnDto, UpdateReturnDto } from './returns.dto';
 
 /** 0 طلب العميل · 1 مقبول (بانتظار الاستلام) · 2 مرفوض · 3 مكتمل */
@@ -33,6 +34,7 @@ export class ShopReturnsService {
     private readonly prisma: TenantPrismaService,
     private readonly access: ShopStoreAccessService,
     private readonly push: PushService,
+    private readonly loyalty: LoyaltyService,
   ) {}
 
   // ═══ العميل ═══════════════════════════════════════════════
@@ -144,6 +146,8 @@ export class ShopReturnsService {
     return this.prisma.$transaction(async (tx) => {
       if (restock) await restoreStock(tx, r.order.items);
       await tx.shopOrder.update({ where: { id: r.orderId }, data: { status: OrderStatus.Returned } });
+      // ما كُسب من الطلب يُسحب
+      await this.loyalty.revoke(tx, r.orderId);
       return tx.shopReturn.update({ where: { id }, data: { status: ReturnStatus.Completed, refund, restock, note } });
     });
   }

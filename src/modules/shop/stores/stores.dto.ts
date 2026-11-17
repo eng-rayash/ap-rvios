@@ -13,8 +13,7 @@ import {
   Matches,
   MaxLength,
   Min,
-  ValidateNested,
-} from 'class-validator';
+  ValidateNested, Max } from 'class-validator';
 
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 
@@ -95,6 +94,8 @@ export class UpdateStoreDto {
 
   @IsOptional() @IsInt() @Min(0) deliveryFee?: number;
   @IsOptional() @IsInt() @Min(0) deliveryFreeOver?: number;
+  /** برنامج المكافآت: ٪ من الطلب المكتمل (0 يوقفه) */
+  @IsOptional() @IsInt() @Min(0) @Max(30) loyaltyRate?: number;
   @IsOptional() @IsString() @MaxLength(200) deliveryNote?: string;
 
   @IsOptional()

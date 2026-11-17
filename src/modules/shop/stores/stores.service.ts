@@ -75,6 +75,7 @@ export function storeView(store: ShopStore, plan: string) {
     currency: symbolOf(store.country),
     deliveryFee: store.deliveryFee,
     deliveryFreeOver: store.deliveryFreeOver,
+    loyaltyRate: store.loyaltyRate,
     deliveryNote: store.deliveryNote,
     payMethods: store.payMethods,
     payNote: store.payNote,
@@ -311,6 +312,7 @@ export class StoresService {
 
     if (dto.deliveryFee !== undefined) data.deliveryFee = dto.deliveryFee;
     if (dto.deliveryFreeOver !== undefined) data.deliveryFreeOver = dto.deliveryFreeOver;
+    if (dto.loyaltyRate !== undefined) data.loyaltyRate = dto.loyaltyRate;
     if (dto.deliveryNote !== undefined) data.deliveryNote = dto.deliveryNote.trim();
     if (dto.payNote !== undefined) data.payNote = dto.payNote.trim();
     if (dto.payMethods !== undefined) {

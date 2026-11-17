@@ -60,6 +60,8 @@ export class ManualOrderDto extends PlaceOrderDto {
   @IsOptional() @IsInt() @Min(0) @Max(100_000_000) extraDiscount?: number;
   /** الدفع مُستلم فعلًا (نقدًا في المحل أو تحويلًا وصل) */
   @IsOptional() @IsBoolean() paid?: boolean;
+  /** يُخصم من رصيد مكافآت العميل (برقمه) */
+  @IsOptional() @IsInt() @Min(0) @Max(100_000_000) pointsUsed?: number;
   /** يبدأ «مؤكدًا» (الافتراضي) — التاجر هو من أخذ الطلب */
   @IsOptional() @IsBoolean() confirm?: boolean;
 }

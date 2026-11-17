@@ -916,6 +916,8 @@ model ShopStore {
 
   deliveryFee      Int    @default(0) @map("delivery_fee")
   deliveryFreeOver Int    @default(0) @map("delivery_free_over")
+  /// برنامج المكافآت: نسبة مئوية من إجمالي الطلب المكتمل تُضاف لرصيد العميل (0 = متوقف)
+  loyaltyRate      Int     @default(0) @map("loyalty_rate")
   deliveryNote     String @default("") @map("delivery_note")
   /// قائمة مفصولة بفواصل: cod,wallet,bank — والـcod لا تُنزع
   payMethods       String @default("cod") @map("pay_methods")
@@ -1152,6 +1154,23 @@ model ShopCart {
   @@map("shop_carts")
 }
 
+/// حركات رصيد المكافآت — kind: earn · redeem · revoke · adjust
+model ShopPointsTx {
+  id         String   @id @default(uuid())
+  companyId  String   @map("company_id")
+  storeId    String   @map("store_id")
+  customerId String   @map("customer_id")
+  orderId    String?  @map("order_id")
+  amount     Int
+  kind       String
+  note       String   @default("")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([customerId, createdAt])
+  @@index([orderId])
+  @@map("shop_points_tx")
+}
+
 model ShopProductVariant {
   id        String  @id @default(uuid())
   companyId String  @map("company_id")
@@ -1183,6 +1202,8 @@ model ShopCustomer {
   phone     String
   name      String   @default("")
   address   String   @default("")
+  /// رصيد المكافآت بعملة المتجر
+  points    Int      @default(0)
   firstAt   DateTime @default(now()) @map("first_at")
   lastAt    DateTime @default(now()) @map("last_at")
 
