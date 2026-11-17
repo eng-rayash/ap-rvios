@@ -79,7 +79,8 @@ export class ShopReportsService {
       revenue, orders: sold.length, averageOrder: sold.length ? Math.round(revenue / sold.length) : 0,
       products: sold.reduce((a, o) => a + o.subtotal, 0), delivery: sold.reduce((a, o) => a + o.deliveryFee, 0),
       discounts: sold.reduce((a, o) => a + o.discount, 0), walletPaid: sold.reduce((a, o) => a + o.walletPaid, 0),
-      conversion: pct(sold.length, visitors), visitors,
+      // قبل بدء عدّ الزوار قد تسبق الطلباتُ الزوارَ — النسبة لا تتجاوز ١٠٠٪
+      conversion: Math.min(100, pct(sold.length, visitors)), visitors,
       change: { revenue: delta(revenue, prevRevenue), orders: delta(sold.length, prevSold.length) },
       previous: { revenue: prevRevenue, orders: prevSold.length },
       series, byPayMethod: byPay,

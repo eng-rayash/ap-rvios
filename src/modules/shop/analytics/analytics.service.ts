@@ -302,7 +302,7 @@ export class AnalyticsService {
         averageOrder: sold.length ? Math.round(revenue / sold.length) : 0,
         visits: totalVisits,
         // نسبة الطلبات إلى الزيارات الفريدة — مؤشر التحويل الأهم للتاجر
-        conversion: totalVisits ? Math.round((orders.length / totalVisits) * 1000) / 10 : 0,
+        conversion: totalVisits ? Math.min(100, Math.round((orders.length / totalVisits) * 1000) / 10) : 0,
         cancelRate: orders.length ? Math.round((byStatus[OrderStatus.Off] / orders.length) * 1000) / 10 : 0,
       },
       profit: {
