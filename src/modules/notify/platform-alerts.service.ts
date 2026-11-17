@@ -9,7 +9,7 @@ import { PushService } from './push.service';
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const AZM = () => (process.env.AZMSMART_URL || 'https://azm.rvios.com').replace(/\/+$/, '');
 
-export type AlertKind = 'store_request' | 'invoice_proof' | 'custom_store' | 'contact' | 'store_created' | 'kyc';
+export type AlertKind = 'store_request' | 'invoice_proof' | 'custom_store' | 'contact' | 'store_created' | 'kyc' | 'support';
 
 export interface AlertInput {
   kind: AlertKind;

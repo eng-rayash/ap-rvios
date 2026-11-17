@@ -82,6 +82,8 @@ export class TenantPrismaService extends PrismaClient implements OnModuleInit, O
     'shopWalletTx',
     'shopNotice',
     'shopBroadcast',
+    'supportTicket',
+    'supportMessage',
     'shopOrder',
     'shopOrderItem',
     'shopReview',

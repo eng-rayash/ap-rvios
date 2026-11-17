@@ -81,6 +81,7 @@ model Organization {
   cmsMedia             CmsMedia[]
   cmsContacts          CmsContact[]
   cmsSettings          CmsSetting[]
+  supportTickets       SupportTicket[]
 
   @@map("organizations")
 }
@@ -125,6 +126,7 @@ model User {
   emailCodes  EmailCode[]
   aiConversations AiConversation[]
   devices         DeviceToken[]
+  supportMessages SupportMessage[]
 
   @@map("users")
 }
@@ -937,6 +939,7 @@ model ShopStore {
   aiConversations AiConversation[]
   aiUsage      AiUsage[]
   kyc          ShopKyc?
+  supportTickets SupportTicket[]
 
   @@index([companyId])
   @@map("shop_stores")
@@ -1292,6 +1295,45 @@ model ShopCustomerOtp {
 
   @@index([storeId, phone, createdAt])
   @@map("shop_customer_otps")
+}
+
+/// تذكرة دعم بين التاجر وفريق المنصة — 0 بانتظار الفريق · 1 بانتظار التاجر · 2 مغلقة
+model SupportTicket {
+  id            String       @id @default(uuid())
+  companyId     String       @map("company_id")
+  organization  Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  storeId       String?      @map("store_id")
+  store         ShopStore?   @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  ref           String       @unique
+  subject       String
+  /// store · billing · technical · domain · other
+  category      String
+  /// 0 عادية · 1 مهمة · 2 عاجلة
+  priority      Int          @default(0)
+  status        Int          @default(0)
+  createdById   String       @map("created_by_id")
+  lastMessageAt DateTime     @default(now()) @map("last_message_at")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  messages      SupportMessage[]
+
+  @@index([companyId, status])
+  @@index([status, lastMessageAt])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id        String        @id @default(uuid())
+  ticketId  String        @map("ticket_id")
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  companyId String        @map("company_id")
+  authorId  String        @map("author_id")
+  author    User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  fromStaff Boolean       @default(false) @map("from_staff")
+  body      String
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  @@index([ticketId, createdAt])
+  @@map("support_messages")
 }
 
 model ShopProductVariant {
