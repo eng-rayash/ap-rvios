@@ -101,6 +101,19 @@ describe('أسئلة المنتجات', () => {
     expect(r.body.ids).toEqual([box, kohl]);
   });
 
+  it('الخيارات المحفوظة: الحفظ بالاسم يحدّث، والقيم تُنظّف، وخاصة بالمتجر', async () => {
+    const save = (body: object, t = a.token) => request(http).post(`/api/v1/shop/stores/${storeId}/option-sets`).set(auth(t)).send(body);
+    const s1 = await save({ name: 'المقاس', values: ['S', ' M ', 'M', '', 'L'] }).expect(201);
+    expect(s1.body.values).toEqual(['S', 'M', 'L']);
+    await save({ name: 'المقاس', values: ['M', 'L', 'XL'] }).expect(201);
+    const l = await request(http).get(`/api/v1/shop/stores/${storeId}/option-sets`).set(auth(a.token)).expect(200);
+    expect(l.body).toHaveLength(1);
+    expect(l.body[0].values).toEqual(['M', 'L', 'XL']);
+    await request(http).get(`/api/v1/shop/stores/${storeId}/option-sets`).set(auth(b.token)).expect(404);
+    await save({ name: 'فارغ', values: [] }).expect(400);
+    await request(http).delete(`/api/v1/shop/stores/${storeId}/option-sets/${l.body[0].id}`).set(auth(a.token)).expect(200);
+  });
+
   it('تاجر آخر لا يرى أسئلة المتجر ولا يعدّلها، ومنتج مجهول ٤٠٤', async () => {
     const list = await request(http).get(`/api/v1/shop/stores/${storeId}/questions`).set(auth(a.token)).expect(200);
     const id = list.body.questions[0].id;

@@ -1077,6 +1077,19 @@ model ShopQuestion {
   @@map("shop_questions")
 }
 
+/// خيار محفوظ (المقاسات، الألوان…) يطبّقه التاجر على أي منتج — خاص باللوحة
+model ShopOptionSet {
+  id        String   @id @default(uuid())
+  companyId String   @map("company_id")
+  storeId   String   @map("store_id")
+  name      String
+  values    String[] @default([])
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([storeId, name])
+  @@map("shop_option_sets")
+}
+
 model ShopProductVariant {
   id        String  @id @default(uuid())
   companyId String  @map("company_id")

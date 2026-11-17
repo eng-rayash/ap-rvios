@@ -70,6 +70,7 @@ import { CouponsService } from './modules/shop/coupons/coupons.service';
 import { ShopQuestionsController } from './modules/shop/questions/questions.controller';
 import { ShopQuestionsService } from './modules/shop/questions/questions.service';
 import { ShopReturnsController } from './modules/shop/returns/returns.controller';
+import { OptionSetsController, OptionSetsService } from './modules/shop/catalog/option-sets';
 import { ShopReturnsService } from './modules/shop/returns/returns.service';
 import { OrdersService } from './modules/shop/orders/orders.service';
 import { ZonesService } from './modules/shop/orders/zones.service';
@@ -175,6 +176,7 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     CouponsController,
     ShopQuestionsController,
     ShopReturnsController,
+    OptionSetsController,
     AnalyticsController,
     ShopPublicController,
     CategoriesController,
@@ -243,6 +245,7 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     CouponsService,
     ShopQuestionsService,
     ShopReturnsService,
+    OptionSetsService,
     AnalyticsService,
     ShopPublicService,
     PublicRateLimit,
