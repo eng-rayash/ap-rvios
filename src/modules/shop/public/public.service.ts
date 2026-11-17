@@ -9,7 +9,7 @@ import { normalizeDomain } from '../domain.util';
 import { ShopStoreAccessService } from '../shop-store-access.service';
 import { variantLabel, variantPrice } from '../catalog/catalog.service';
 import { waAsk } from '../orders/order-message';
-import { PAY_METHODS, StoreStatus, countryOf, limitsOf, symbolOf } from '../shop.constants';
+import { PAY_METHODS, SOLD_STATUSES, StoreStatus, countryOf, limitsOf, symbolOf } from '../shop.constants';
 import { storeView } from '../stores/stores.service';
 import { DEMO_WORKSPACE_SLUG } from '../../demo/demo.constant';
 
@@ -243,6 +243,34 @@ export class ShopPublicService {
       })),
       ...(await this.products(store, plan, q)),
     };
+  }
+
+  /**
+   * «يُشترى معًا غالبًا»: منتجات ظهرت مع هذا المنتج في طلبات حقيقية (آخر ١٨٠ يومًا، غير الملغاة)،
+   * مرتبة بعدد مرات الاقتران. يعيد المعرّفات فقط — الواجهة تملك بيانات المنتجات. فارغ حين لا بيانات كافية.
+   */
+  async together(slug: string, id: string): Promise<{ ids: string[] }> {
+    const { store } = await this.live(slug);
+    const since = new Date(Date.now() - 180 * 86_400_000);
+    const orders = await this.prisma.shopOrderItem.findMany({
+      where: { storeId: store.id, productId: id, order: { createdAt: { gte: since }, status: { in: SOLD_STATUSES } } },
+      select: { orderId: true },
+      orderBy: { id: 'desc' },
+      take: 300,
+    });
+    if (!orders.length) return { ids: [] };
+    const pairs = await this.prisma.shopOrderItem.groupBy({
+      by: ['productId'],
+      where: { orderId: { in: [...new Set(orders.map((o) => o.orderId))] }, productId: { not: id } },
+      _count: { _all: true },
+      orderBy: { _count: { productId: 'desc' } },
+      take: 12,
+    });
+    const ids = pairs.map((p) => p.productId).filter((x): x is string => !!x);
+    if (!ids.length) return { ids: [] };
+    // المتاح للبيع الآن فقط، بترتيب الاقتران
+    const live = new Set((await this.prisma.shopProduct.findMany({ where: { id: { in: ids }, storeId: store.id, live: true, qty: { gt: 0 } }, select: { id: true } })).map((p) => p.id));
+    return { ids: ids.filter((x) => live.has(x)).slice(0, 4) };
   }
 
   /** منتج واحد بمعرضه وخياراته — رابط قابل للمشاركة. */

@@ -80,6 +80,27 @@ describe('أسئلة المنتجات', () => {
     expect(pub.body.questions).toHaveLength(0);
   });
 
+  it('«يُشترى معًا غالبًا» من الطلبات الحقيقية: الأكثر اقترانًا أولًا، بلا الملغى ولا النافد', async () => {
+    const mk = async (name: string, qty = 10) => (await request(http).post(`/api/v1/shop/stores/${storeId}/products`).set(auth(a.token)).send({ name, price: 500, qty, live: true }).expect(201)).body.id as string;
+    const kohl = await mk('كحل');
+    const box = await mk('علبة هدية');
+    const gone = await mk('نفد', 1);
+    const order = async (ids: string[], cancel = false) => {
+      process.env.SHOP_ORDER_LIMIT = '1000';
+      const o = await request(http).post(`/api/v1/shop/storefront/${slug}/orders`).send({ lines: ids.map((id) => ({ id, qty: 1 })), name: 'ع' }).expect(201);
+      const l = await request(http).get(`/api/v1/shop/stores/${storeId}/orders?q=${o.body.ref}`).set(auth(a.token)).expect(200);
+      await request(http).patch(`/api/v1/shop/stores/${storeId}/orders/${l.body.orders[0].id}`).set(auth(a.token)).send({ status: cancel ? 3 : 1 }).expect(200);
+    };
+    let r = await request(http).get(`/api/v1/shop/storefront/${slug}/products/${productId}/together`).expect(200);
+    expect(r.body.ids).toEqual([]);
+    await order([productId, kohl, box]);
+    await order([productId, box]);
+    await order([productId, gone]); // نفد بعدها
+    await order([productId, kohl], true); // ملغى لا يُحسب
+    r = await request(http).get(`/api/v1/shop/storefront/${slug}/products/${productId}/together`).expect(200);
+    expect(r.body.ids).toEqual([box, kohl]);
+  });
+
   it('تاجر آخر لا يرى أسئلة المتجر ولا يعدّلها، ومنتج مجهول ٤٠٤', async () => {
     const list = await request(http).get(`/api/v1/shop/stores/${storeId}/questions`).set(auth(a.token)).expect(200);
     const id = list.body.questions[0].id;

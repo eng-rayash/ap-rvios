@@ -105,6 +105,12 @@ export class ShopPublicController {
     return this.reviews.published(store, id);
   }
 
+  /** «يُشترى معًا غالبًا» من الطلبات الحقيقية — معرّفات فقط */
+  @Get(':slug/products/:id/together')
+  together(@Param('slug') slug: string, @Param('id', ParseUUIDPipe) id: string) {
+    return this.publicShop.together(slug, id);
+  }
+
   /** الأسئلة المُجابة المنشورة — قبل `:id` العام كي لا يلتقطها */
   @Get(':slug/products/:id/questions')
   async productQuestions(@Param('slug') slug: string, @Param('id', ParseUUIDPipe) id: string) {
