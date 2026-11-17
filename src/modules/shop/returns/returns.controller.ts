@@ -4,8 +4,10 @@ import { RequireRole, Tenant } from '../../../common/tenant/tenant.guard';
 import { TenantContext, UserRole } from '../../../common/tenant/tenant-context';
 import { CreateReturnDto, UpdateReturnDto } from './returns.dto';
 import { ShopReturnsService } from './returns.service';
+import { ShopSection } from '../../../common/tenant/shop-sections';
 
 /** المرتجعات — لوحة التاجر */
+@ShopSection('orders')
 @Controller('shop/stores/:storeId/returns')
 export class ShopReturnsController {
   constructor(private readonly returns: ShopReturnsService) {}

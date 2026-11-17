@@ -10,6 +10,7 @@ import { TenantContext, UserRole } from '../../../common/tenant/tenant-context';
 import { StorefrontCache } from '../public/storefront-cache.service';
 import { ShopStoreAccessService } from '../shop-store-access.service';
 import { SOLD_STATUSES } from '../shop.constants';
+import { ShopSection } from '../../../common/tenant/shop-sections';
 
 export const SECTION_SOURCES = ['best', 'new', 'sale', 'category', 'brand', 'manual'] as const;
 export type SectionSource = (typeof SECTION_SOURCES)[number];
@@ -155,6 +156,7 @@ export class ShopSectionsService {
   }
 }
 
+@ShopSection('products')
 @Controller('shop/stores/:storeId/sections')
 export class ShopSectionsController {
   constructor(private readonly sections: ShopSectionsService) {}

@@ -7,6 +7,7 @@ import { TenantContext, UserRole } from '../../../common/tenant/tenant-context';
 import { StoreImagesGc } from '../../uploads/store-images-gc.service';
 import { ShopStoreAccessService } from '../shop-store-access.service';
 import { ProductSnapshot } from './trash-snapshot';
+import { ShopSection } from '../../../common/tenant/shop-sections';
 
 /** مدة البقاء في سلة المحذوفات قبل الحذف النهائي */
 export const TRASH_DAYS = 30;
@@ -97,6 +98,7 @@ export class ShopTrashService {
   }
 }
 
+@ShopSection('products')
 @Controller('shop/stores/:storeId/trash')
 export class ShopTrashController {
   constructor(private readonly trash: ShopTrashService) {}

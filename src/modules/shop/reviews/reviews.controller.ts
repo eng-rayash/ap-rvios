@@ -4,8 +4,10 @@ import { Tenant } from '../../../common/tenant/tenant.guard';
 import { TenantContext } from '../../../common/tenant/tenant-context';
 import { UpdateReviewDto } from './reviews.dto';
 import { ShopReviewsService } from './reviews.service';
+import { ShopSection } from '../../../common/tenant/shop-sections';
 
 /** تقييمات منتجات المتجر — للتاجر: قراءتها، وإخفاؤها أو نشرها، والردّ عليها. */
+@ShopSection('products')
 @Controller('shop/stores/:storeId/reviews')
 export class ShopReviewsController {
   constructor(private readonly reviews: ShopReviewsService) {}

@@ -1,4 +1,6 @@
-import { IsBoolean, IsEmail, IsInt, IsOptional, IsString, Length, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsIn, IsInt, IsOptional, IsString, Length, Max, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
+
+import { SHOP_SECTIONS } from '../../common/tenant/shop-sections';
 
 export class AddMemberDto {
   @IsEmail({}, { message: 'بريد إلكتروني غير صالح' })
@@ -19,6 +21,10 @@ export class AddMemberDto {
   @Min(1)
   @Max(9)
   role!: number;
+
+  /** أقسام المتجر للموظف — غيابه = كلها */
+  @IsOptional() @IsArray() @IsIn(SHOP_SECTIONS, { each: true })
+  sections?: string[];
 }
 
 export class UpdateMemberDto {
@@ -31,6 +37,10 @@ export class UpdateMemberDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  /** null = كل الأقسام */
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsArray() @IsIn(SHOP_SECTIONS, { each: true })
+  sections?: string[] | null;
 }
 
 export class UpdateProfileDto {

@@ -9,6 +9,7 @@ import { TenantContext } from '../../../common/tenant/tenant-context';
 import { variantPrice } from '../catalog/catalog.service';
 import { ShopStoreAccessService } from '../shop-store-access.service';
 import { symbolOf, toE164 } from '../shop.constants';
+import { ShopSection } from '../../../common/tenant/shop-sections';
 
 export class CartLineDto {
   @IsUUID() id!: string;
@@ -124,6 +125,7 @@ export class ShopCartsService {
   }
 }
 
+@ShopSection('orders')
 @Controller('shop/stores/:storeId/carts')
 export class ShopCartsController {
   constructor(private readonly carts: ShopCartsService) {}

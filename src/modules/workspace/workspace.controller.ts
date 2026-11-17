@@ -20,6 +20,8 @@ import { RequireRole, Tenant } from '../../common/tenant/tenant.guard';
 import { TenantContext, UserRole } from '../../common/tenant/tenant-context';
 import { AddMemberDto, ChangePasswordDto, UpdateMemberDto, UpdateProfileDto } from './dto';
 import { SITE_WORKSPACE_SLUG } from '../cms/site-organization.constant';
+import { sectionsOf } from '../../common/tenant/shop-sections';
+import { Prisma } from '@prisma/client';
 
 /**
  * سياق الجلسة وفريق الشركة — ما تحتاجه الواجهة لرسم مساحة العمل الصحيحة
@@ -77,6 +79,8 @@ export class WorkspaceController {
       storeCount: stores,
       // جلسة دعم من فريق المنصة: الواجهة تعرض شريطًا «تدير هذه الشركة كفريق RVIOS»
       support: ctx.support === true,
+      // أقسام المتجر المتاحة — null = كلها (الواجهة تخفي الباقي، والمنع في الخادم)
+      sections: ctx.sections ?? null,
     };
   }
 
@@ -90,6 +94,7 @@ export class WorkspaceController {
         id: true,
         role: true,
         isActive: true,
+        permissions: true,
         joinedAt: true,
         createdAt: true,
         user: {
@@ -104,7 +109,7 @@ export class WorkspaceController {
         },
       },
     });
-    return { members: rows };
+    return { members: rows.map(({ permissions, ...m }) => ({ ...m, sections: sectionsOf(m.role, permissions) })) };
   }
 
   /**
@@ -146,6 +151,7 @@ export class WorkspaceController {
         userId,
         organizationId: ctx.companyId,
         role: dto.role,
+        ...(dto.sections ? { permissions: { shop: dto.sections } } : {}),
         joinedAt: new Date(),
       },
       select: { id: true },
@@ -179,6 +185,9 @@ export class WorkspaceController {
       data: {
         ...(dto.role !== undefined && { role: dto.role }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        ...(dto.sections !== undefined && {
+          permissions: dto.sections === null ? Prisma.DbNull : { ...((target.permissions as object | null) ?? {}), shop: dto.sections },
+        }),
       },
     });
     return { ok: true };

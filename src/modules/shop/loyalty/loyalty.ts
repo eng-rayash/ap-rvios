@@ -6,6 +6,7 @@ import { TenantPrismaService } from '../../../common/prisma/tenant-prisma.servic
 import { RequireRole, Tenant } from '../../../common/tenant/tenant.guard';
 import { TenantContext, UserRole } from '../../../common/tenant/tenant-context';
 import { ShopStoreAccessService } from '../shop-store-access.service';
+import { ShopSection } from '../../../common/tenant/shop-sections';
 
 export class AdjustPointsDto {
   /** موجب يضيف، سالب يخصم (لا يتجاوز الرصيد) */
@@ -78,6 +79,7 @@ export class LoyaltyService {
   }
 }
 
+@ShopSection('customers')
 @Controller('shop/stores/:storeId/customers/:customerId/points')
 export class LoyaltyController {
   constructor(private readonly loyalty: LoyaltyService) {}

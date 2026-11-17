@@ -13,8 +13,10 @@ import { RequireRole, Tenant } from '../../../common/tenant/tenant.guard';
 import { TenantContext, UserRole } from '../../../common/tenant/tenant-context';
 import { CatalogService } from './catalog.service';
 import { CreateCategoryDto, ProductDto, UpdateCategoryDto } from './catalog.dto';
+import { ShopSection, hideCost } from '../../../common/tenant/shop-sections';
 
 /** كتالوج متجر — تصنيفات ومنتجات. الكتابة لمدير الأقسام فما فوق. */
+@ShopSection('products')
 @Controller('shop/stores/:storeId')
 export class CatalogController {
   constructor(private readonly catalog: CatalogService) {}
@@ -65,7 +67,7 @@ export class CatalogController {
     @Tenant() ctx: TenantContext,
     @Param('storeId', ParseUUIDPipe) storeId: string,
   ) {
-    return this.catalog.listProducts(ctx, storeId);
+    return this.catalog.listProducts(ctx, storeId).then((r) => hideCost(ctx, r));
   }
 
   @Get('products/:id')
@@ -74,7 +76,7 @@ export class CatalogController {
     @Param('storeId', ParseUUIDPipe) storeId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.catalog.getProduct(ctx, storeId, id);
+    return this.catalog.getProduct(ctx, storeId, id).then((r) => hideCost(ctx, r));
   }
 
   @RequireRole(UserRole.DeptManager)
@@ -84,7 +86,7 @@ export class CatalogController {
     @Param('storeId', ParseUUIDPipe) storeId: string,
     @Body() dto: ProductDto,
   ) {
-    return this.catalog.createProduct(ctx, storeId, dto);
+    return this.catalog.createProduct(ctx, storeId, dto).then((r) => hideCost(ctx, r));
   }
 
   @RequireRole(UserRole.DeptManager)
@@ -95,7 +97,7 @@ export class CatalogController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ProductDto,
   ) {
-    return this.catalog.updateProduct(ctx, storeId, id, dto);
+    return this.catalog.updateProduct(ctx, storeId, id, dto).then((r) => hideCost(ctx, r));
   }
 
   @RequireRole(UserRole.DeptManager)

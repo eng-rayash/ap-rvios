@@ -23,6 +23,9 @@ export interface TenantContext {
   /** معرّف العضوية — يربط المستخدم بالشركة */
   readonly membershipId: string;
 
+  /** أقسام المتجر المتاحة للموظف — null/غائب = كلها. انظر `shop-sections.ts` */
+  readonly sections?: readonly string[] | null;
+
   /** جلسة دعم من فريق المنصة (لا عضوية): انظر `SupportSessionController` */
   readonly support?: boolean;
 }

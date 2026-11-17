@@ -3,6 +3,7 @@ import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { Tenant } from '../../../common/tenant/tenant.guard';
 import { TenantContext } from '../../../common/tenant/tenant-context';
 import { AnalyticsService } from './analytics.service';
+import { ShopSection } from '../../../common/tenant/shop-sections';
 
 /** النظرة العامة والتحليلات والتقارير — قراءة فقط. */
 @Controller('shop/stores/:storeId')
@@ -17,6 +18,7 @@ export class AnalyticsController {
     return this.analytics.overview(ctx, storeId);
   }
 
+  @ShopSection('reports')
   @Get('analytics')
   report(
     @Tenant() ctx: TenantContext,
@@ -26,6 +28,7 @@ export class AnalyticsController {
     return this.analytics.analytics(ctx, storeId, Number(days) || 30);
   }
 
+  @ShopSection('products')
   @Get('low-stock')
   lowStock(
     @Tenant() ctx: TenantContext,

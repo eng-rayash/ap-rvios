@@ -6,6 +6,7 @@ import { TenantPrismaService, tenantCreate } from '../../../common/prisma/tenant
 import { RequireRole, Tenant } from '../../../common/tenant/tenant.guard';
 import { TenantContext, UserRole } from '../../../common/tenant/tenant-context';
 import { ShopStoreAccessService } from '../shop-store-access.service';
+import { ShopSection } from '../../../common/tenant/shop-sections';
 
 export class OptionSetDto {
   @IsString() @Length(1, 24) name!: string;
@@ -52,6 +53,7 @@ export class OptionSetsService {
   }
 }
 
+@ShopSection('products')
 @Controller('shop/stores/:storeId/option-sets')
 export class OptionSetsController {
   constructor(private readonly sets: OptionSetsService) {}

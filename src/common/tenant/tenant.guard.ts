@@ -13,6 +13,7 @@ import { DEMO_READONLY, DEMO_WORKSPACE_SLUG } from '../../modules/demo/demo.cons
 import { TenantPrismaService } from '../prisma/tenant-prisma.service';
 import { hashApiKey } from '../security/api-key.util';
 import { TenantContext, PlatformContext, UserRole, hasRole } from './tenant-context';
+import { SHOP_SECTION_KEY, SHOP_SECTION_LABEL, ShopSectionKey, sectionsOf } from './shop-sections';
 
 /** المسارات المعلَّمة بهذا لا تحتاج مصادقة — التسجيل والدخول. */
 export const PUBLIC_KEY = 'azm:public';
@@ -149,7 +150,7 @@ export class TenantGuard implements CanActivate {
         deletedAt: null,
       },
       select: {
-        id: true, role: true, organizationId: true, userId: true,
+        id: true, role: true, organizationId: true, userId: true, permissions: true,
         user: { select: { passwordChangedAt: true } },
         organization: { select: { workspaceSlug: true } },
       },
@@ -179,11 +180,22 @@ export class TenantGuard implements CanActivate {
       throw new ForbiddenException('صلاحيتك لا تكفي لهذا الإجراء');
     }
 
+    // أقسام المتجر: الموظف يرى ما حدّده له المدير فقط
+    const sections = sectionsOf(membership.role, membership.permissions);
+    const section = this.reflector.getAllAndOverride<ShopSectionKey | undefined>(SHOP_SECTION_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (section && sections && !sections.includes(section)) {
+      throw new ForbiddenException(`ليست لديك صلاحية قسم «${SHOP_SECTION_LABEL[section]}» — اطلبها من مدير المتجر`);
+    }
+
     const ctx: TenantContext = {
       userId: membership.userId,
       companyId: membership.organizationId,
       role: membership.role,
       membershipId: membership.id,
+      sections,
     };
     req.tenant = ctx;
 

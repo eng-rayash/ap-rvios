@@ -15,6 +15,7 @@ import { TenantContext, UserRole } from '../../../common/tenant/tenant-context';
 import { AdvanceOrderDto, ManualOrderDto, OrderPaymentDto, ZoneDto } from './orders.dto';
 import { OrdersService } from './orders.service';
 import { ZonesService } from './zones.service';
+import { ShopSection, hideCost } from '../../../common/tenant/shop-sections';
 
 function statusOf(status?: string) {
   const s = status !== undefined && status !== '' ? Number(status) : undefined;
@@ -29,6 +30,7 @@ export class OrdersController {
     private readonly zones: ZonesService,
   ) {}
 
+  @ShopSection('orders')
   @Get('orders')
   list(
     @Tenant() ctx: TenantContext,
@@ -47,6 +49,7 @@ export class OrdersController {
 
   /** بيانات العملاء دفعة واحدة: للمدير فأعلى كالدفع */
   @RequireRole(UserRole.DeptManager)
+  @ShopSection('orders')
   @Get('orders/export')
   export(
     @Tenant() ctx: TenantContext,
@@ -57,17 +60,19 @@ export class OrdersController {
     return this.orders.export(ctx, storeId, { status: statusOf(status), q: typeof q === 'string' ? q : undefined });
   }
 
+  @ShopSection('orders')
   @Get('orders/:id')
   get(
     @Tenant() ctx: TenantContext,
     @Param('storeId', ParseUUIDPipe) storeId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.orders.get(ctx, storeId, id);
+    return this.orders.get(ctx, storeId, id).then((o) => hideCost(ctx, o));
   }
 
   /** طلب يدوي (هاتف، واتساب، المحل) — يحجز المخزون ويحسب القسيمة كطلب المتجر */
   @RequireRole(UserRole.Employee)
+  @ShopSection('orders')
   @Post('orders')
   createManual(
     @Tenant() ctx: TenantContext,
@@ -78,6 +83,7 @@ export class OrdersController {
   }
 
   @RequireRole(UserRole.Employee)
+  @ShopSection('orders')
   @Patch('orders/:id')
   advance(
     @Tenant() ctx: TenantContext,
@@ -89,6 +95,7 @@ export class OrdersController {
   }
 
   @RequireRole(UserRole.DeptManager)
+  @ShopSection('orders')
   @Patch('orders/:id/payment')
   payment(
     @Tenant() ctx: TenantContext,
@@ -99,6 +106,7 @@ export class OrdersController {
     return this.orders.setPayment(ctx, storeId, id, dto.paid);
   }
 
+  @ShopSection('customers')
   @Get('customers')
   customers(
     @Tenant() ctx: TenantContext,

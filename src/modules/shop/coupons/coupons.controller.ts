@@ -4,8 +4,10 @@ import { RequireRole, Tenant } from '../../../common/tenant/tenant.guard';
 import { TenantContext, UserRole } from '../../../common/tenant/tenant-context';
 import { CouponDto } from './coupons.dto';
 import { CouponsService } from './coupons.service';
+import { ShopSection } from '../../../common/tenant/shop-sections';
 
 /** قسائم الخصم — لوحة التاجر (القراءة للجميع، والتعديل للمدير فأعلى كمناطق التوصيل) */
+@ShopSection('marketing')
 @Controller('shop/stores/:storeId/coupons')
 export class CouponsController {
   constructor(private readonly coupons: CouponsService) {}

@@ -4,8 +4,10 @@ import { RequireRole, Tenant } from '../../../common/tenant/tenant.guard';
 import { TenantContext, UserRole } from '../../../common/tenant/tenant-context';
 import { AnswerQuestionDto } from './questions.dto';
 import { ShopQuestionsService } from './questions.service';
+import { ShopSection } from '../../../common/tenant/shop-sections';
 
 /** أسئلة المنتجات — لوحة التاجر */
+@ShopSection('products')
 @Controller('shop/stores/:storeId/questions')
 export class ShopQuestionsController {
   constructor(private readonly questions: ShopQuestionsService) {}
