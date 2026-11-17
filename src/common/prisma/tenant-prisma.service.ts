@@ -71,6 +71,7 @@ export class TenantPrismaService extends PrismaClient implements OnModuleInit {
     'shopQuestion',
     'shopReturn',
     'shopOptionSet',
+    'shopSection',
     'shopOrder',
     'shopOrderItem',
     'shopReview',

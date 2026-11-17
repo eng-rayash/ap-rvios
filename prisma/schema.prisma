@@ -1090,6 +1090,28 @@ model ShopOptionSet {
   @@map("shop_option_sets")
 }
 
+/// قسم منتجات في رئيسية المتجر — source: best · new · sale · category · brand · manual
+model ShopSection {
+  id         String   @id @default(uuid())
+  companyId  String   @map("company_id")
+  storeId    String   @map("store_id")
+  title      String
+  subtitle   String   @default("")
+  source     String   @default("best")
+  /// معرّف التصنيف أو اسم العلامة
+  ref        String   @default("")
+  productIds String[] @default([]) @map("product_ids")
+  /// grid · row
+  layout     String   @default("grid")
+  limit      Int      @default(8)
+  sort       Int      @default(0)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([storeId, active, sort])
+  @@map("shop_sections")
+}
+
 model ShopProductVariant {
   id        String  @id @default(uuid())
   companyId String  @map("company_id")

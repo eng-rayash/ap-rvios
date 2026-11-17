@@ -4,6 +4,7 @@ import { Prisma, ShopProduct, ShopStore } from '@prisma/client';
 
 import { TenantPrismaService } from '../../../common/prisma/tenant-prisma.service';
 import { CouponsService } from '../coupons/coupons.service';
+import { ShopSectionsService } from '../sections/sections';
 import { ShopReviewsService } from '../reviews/reviews.service';
 import { normalizeDomain } from '../domain.util';
 import { ShopStoreAccessService } from '../shop-store-access.service';
@@ -40,6 +41,7 @@ export class ShopPublicService {
     private readonly access: ShopStoreAccessService,
     private readonly reviews: ShopReviewsService,
     private readonly coupons: CouponsService,
+    private readonly sections: ShopSectionsService,
   ) {}
 
   /** يجلب متجرًا نشطًا بالرابط. الموقوف ٤١٠، والمجهول ٤٠٤، والقديم تحويل. */
@@ -432,6 +434,8 @@ export class ShopPublicService {
     return {
       store: this.publicStore(store, plan),
       coupons: await this.coupons.hasActive(store.id),
+      // أقسام الرئيسية: معرّفات منتجات من هذا الكتالوج نفسه
+      sections: await this.sections.resolve(store, ids, parentOf),
       zones: zones.map((z) => ({ id: z.id, name: z.name, fee: z.fee, freeOver: z.freeOver })),
       products,
       // `count` لمنتجات التصنيف نفسه، و`total` له ولفروعه — الأعلى يظهر ما دام

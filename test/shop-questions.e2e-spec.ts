@@ -114,6 +114,33 @@ describe('أسئلة المنتجات', () => {
     await request(http).delete(`/api/v1/shop/stores/${storeId}/option-sets/${l.body[0].id}`).set(auth(a.token)).expect(200);
   });
 
+  it('أقسام الرئيسية: الأحدث والعروض والعلامة والاختيار اليدوي، والفارغ والمعطّل لا يُرسلان', async () => {
+    const S = `/api/v1/shop/stores/${storeId}/sections`;
+    const mk = async (body: object) => (await request(http).post(`/api/v1/shop/stores/${storeId}/products`).set(auth(a.token)).send({ price: 1000, qty: 5, live: true, ...body }).expect(201)).body.id as string;
+    const saleId = await mk({ name: 'عرض', oldPrice: 2000, brand: 'دار' });
+    const hidden = await mk({ name: 'مخفي', live: false, brand: 'دار' });
+    await request(http).post(S).set(auth(a.token)).send({ title: 'العروض', source: 'sale' }).expect(201);
+    await request(http).post(S).set(auth(a.token)).send({ title: 'دار', source: 'brand', ref: 'دار', layout: 'row' }).expect(201);
+    await request(http).post(S).set(auth(a.token)).send({ title: 'مختارات', source: 'manual', productIds: [hidden, saleId] }).expect(201);
+    const off = await request(http).post(S).set(auth(a.token)).send({ title: 'معطّل', source: 'new', active: false }).expect(201);
+    await request(http).post(S).set(auth(a.token)).send({ title: 'ناقص', source: 'brand' }).expect(400);
+    await request(http).post(S).set(auth(a.token)).send({ title: 'لا شيء', source: 'brand', ref: 'غير موجودة' }).expect(201);
+    const c = await request(http).get(`/api/v1/shop/storefront/${slug}/catalogue`).expect(200);
+    const by = Object.fromEntries((c.body.sections as { title: string; productIds: string[]; layout: string }[]).map((s) => [s.title, s]));
+    expect(by['العروض'].productIds).toEqual([saleId]);
+    expect(by['دار'].productIds).toEqual([saleId]);
+    expect(by['دار'].layout).toBe('row');
+    expect(by['مختارات'].productIds).toEqual([saleId]);
+    expect(by['معطّل']).toBeUndefined();
+    expect(by['لا شيء']).toBeUndefined();
+    const l = await request(http).get(S).set(auth(a.token)).expect(200);
+    const ids = (l.body as { id: string }[]).map((x) => x.id).reverse();
+    const re = await request(http).post(`${S}/reorder`).set(auth(a.token)).send({ ids }).expect(201);
+    expect(re.body[0].id).toBe(ids[0]);
+    await request(http).get(S).set(auth(b.token)).expect(404);
+    await request(http).delete(`${S}/${off.body.id}`).set(auth(a.token)).expect(200);
+  });
+
   it('تاجر آخر لا يرى أسئلة المتجر ولا يعدّلها، ومنتج مجهول ٤٠٤', async () => {
     const list = await request(http).get(`/api/v1/shop/stores/${storeId}/questions`).set(auth(a.token)).expect(200);
     const id = list.body.questions[0].id;
