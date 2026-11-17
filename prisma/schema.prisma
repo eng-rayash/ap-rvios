@@ -1003,6 +1003,7 @@ model ShopProduct {
   images   ShopProductImage[]
   variants ShopProductVariant[]
   reviews  ShopReview[]
+  questions ShopQuestion[]
 
   @@index([storeId, live])
   @@index([storeId, brand])
@@ -1052,6 +1053,26 @@ model ShopReview {
   @@index([storeId, status])
   @@index([productId, status])
   @@map("shop_reviews")
+}
+
+/// سؤال زائر عن منتج — لا يُنشر إلا بعد إجابة التاجر. status: 0 بانتظار · 1 منشور · 2 مخفي
+model ShopQuestion {
+  id         String    @id @default(uuid())
+  companyId  String    @map("company_id")
+  storeId    String    @map("store_id")
+  productId  String    @map("product_id")
+  name       String    @default("")
+  question   String    @db.Text
+  answer     String    @default("") @db.Text
+  status     Int       @default(0)
+  createdAt  DateTime  @default(now()) @map("created_at")
+  answeredAt DateTime? @map("answered_at")
+
+  product ShopProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, status])
+  @@index([productId, status])
+  @@map("shop_questions")
 }
 
 model ShopProductVariant {

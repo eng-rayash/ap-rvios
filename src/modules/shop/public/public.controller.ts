@@ -25,6 +25,8 @@ import { StoresService } from '../stores/stores.service';
 import { ShopReviewsService } from '../reviews/reviews.service';
 import { SubmitReviewDto } from '../reviews/reviews.dto';
 import { CheckCouponDto } from '../coupons/coupons.dto';
+import { AskQuestionDto } from '../questions/questions.dto';
+import { ShopQuestionsService } from '../questions/questions.service';
 import { CouponsService } from '../coupons/coupons.service';
 
 /**
@@ -44,6 +46,7 @@ export class ShopPublicController {
     private readonly stores: StoresService,
     private readonly reviews: ShopReviewsService,
     private readonly coupons: CouponsService,
+    private readonly questions: ShopQuestionsService,
   ) {}
 
   /** متاجر حقيقية للصفحة الرئيسية — قبل `:slug` كي لا يُلتقط اسمًا لمتجر. */
@@ -97,6 +100,22 @@ export class ShopPublicController {
   async productReviews(@Param('slug') slug: string, @Param('id', ParseUUIDPipe) id: string) {
     const { store } = await this.publicShop.live(slug);
     return this.reviews.published(store, id);
+  }
+
+  /** الأسئلة المُجابة المنشورة — قبل `:id` العام كي لا يلتقطها */
+  @Get(':slug/products/:id/questions')
+  async productQuestions(@Param('slug') slug: string, @Param('id', ParseUUIDPipe) id: string) {
+    const { store } = await this.publicShop.live(slug);
+    return { questions: await this.questions.published(store, id) };
+  }
+
+  /** سؤال زائر — بلا حساب، بحدّ معدّل، ولا يُنشر قبل إجابة التاجر */
+  @Post(':slug/products/:id/questions')
+  async ask(@Param('slug') slug: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: AskQuestionDto, @Ip() ip: string) {
+    const { store } = await this.publicShop.live(slug);
+    await this.publicShop.assertNotDemo(store);
+    this.limit.check(`question:${ip}:${store.id}`, 5, 60 * 60_000);
+    return this.questions.ask(store, id, dto);
   }
 
   @Get(':slug/products/:id')
