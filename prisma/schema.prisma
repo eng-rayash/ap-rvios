@@ -1228,6 +1228,72 @@ model ShopCarrier {
   @@map("shop_carriers")
 }
 
+/// حركات محفظة العميل — credit · debit · refund · pay · cancel
+model ShopWalletTx {
+  id         String   @id @default(uuid())
+  companyId  String   @map("company_id")
+  storeId    String   @map("store_id")
+  customerId String   @map("customer_id")
+  orderId    String?  @map("order_id")
+  amount     Int
+  kind       String
+  note       String   @default("")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([customerId, createdAt])
+  @@index([orderId])
+  @@map("shop_wallet_tx")
+}
+
+/// إشعارات العميل في حسابه — order · wallet · points · broadcast
+model ShopNotice {
+  id         String    @id @default(uuid())
+  companyId  String    @map("company_id")
+  storeId    String    @map("store_id")
+  customerId String    @map("customer_id")
+  kind       String
+  title      String
+  body       String    @default("")
+  link       String    @default("")
+  readAt     DateTime? @map("read_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([customerId, createdAt])
+  @@map("shop_notices")
+}
+
+/// إشعار جماعي أرسله التاجر — سجلّه وعدد من وصله
+model ShopBroadcast {
+  id         String   @id @default(uuid())
+  companyId  String   @map("company_id")
+  storeId    String   @map("store_id")
+  title      String
+  body       String
+  link       String   @default("")
+  audience   String
+  recipients Int      @default(0)
+  sent       Int      @default(0)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([storeId, createdAt])
+  @@map("shop_broadcasts")
+}
+
+/// رموز دخول العملاء — مجزّأة، تنتهي بعد ١٠ دقائق، و٥ محاولات
+model ShopCustomerOtp {
+  id        String    @id @default(uuid())
+  storeId   String    @map("store_id")
+  phone     String
+  codeHash  String    @map("code_hash")
+  attempts  Int       @default(0)
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([storeId, phone, createdAt])
+  @@map("shop_customer_otps")
+}
+
 model ShopProductVariant {
   id        String  @id @default(uuid())
   companyId String  @map("company_id")
@@ -1261,6 +1327,10 @@ model ShopCustomer {
   address   String   @default("")
   /// رصيد المكافآت بعملة المتجر
   points    Int      @default(0)
+  /// رصيد المحفظة بعملة المتجر
+  wallet    Int      @default(0)
+  /// أثبت ملكية رقمه برمز — له حساب في المتجر
+  verifiedAt DateTime? @map("verified_at")
   firstAt   DateTime @default(now()) @map("first_at")
   lastAt    DateTime @default(now()) @map("last_at")
 
@@ -1348,6 +1418,8 @@ model ShopOrder {
   trackingNo   String @default("") @map("tracking_no")
   trackUrl     String @default("") @map("track_url")
   trackUrlTemplate String @default("") @map("track_url_template")
+  /// ما دفعه العميل من محفظته — جزء من الإجمالي لا خصم منه
+  walletPaid   Int    @default(0) @map("wallet_paid")
   /// مصدر الطلب: store (واجهة المتجر) · manual (أدخله التاجر لطلب هاتفي أو من واتساب)
   source       String @default("store")
   discount    Int    @default(0)

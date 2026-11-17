@@ -8,6 +8,7 @@ import { recalcStock } from '../catalog/catalog.service';
 import { ShopStoreAccessService } from '../shop-store-access.service';
 import { OrderStatus } from '../shop.constants';
 import { LoyaltyService } from '../loyalty/loyalty';
+import { CustomerNotices, CustomerWallet } from '../customers/customer-accounts';
 import { CreateReturnDto, RequestReturnDto, UpdateReturnDto } from './returns.dto';
 
 /** 0 طلب العميل · 1 مقبول (بانتظار الاستلام) · 2 مرفوض · 3 مكتمل */
@@ -35,6 +36,8 @@ export class ShopReturnsService {
     private readonly access: ShopStoreAccessService,
     private readonly push: PushService,
     private readonly loyalty: LoyaltyService,
+    private readonly wallet: CustomerWallet,
+    private readonly notices: CustomerNotices,
   ) {}
 
   // ═══ العميل ═══════════════════════════════════════════════
@@ -148,6 +151,10 @@ export class ShopReturnsService {
       await tx.shopOrder.update({ where: { id: r.orderId }, data: { status: OrderStatus.Returned } });
       // ما كُسب من الطلب يُسحب
       await this.loyalty.revoke(tx, r.orderId);
+      if (dto.toWallet && refund > 0 && r.order.customerId) {
+        await this.wallet.credit(tx, { companyId: r.companyId, storeId, customerId: r.order.customerId }, refund, 'refund', `مرتجع ${r.order.ref}`, r.orderId);
+        await this.notices.add(tx, { companyId: r.companyId, storeId, customerId: r.order.customerId, kind: 'wallet', title: `أُعيد ${refund.toLocaleString('en-US')} لمحفظتك`, body: `مرتجع الطلب ${r.order.ref}`, link: '/account' });
+      }
       return tx.shopReturn.update({ where: { id }, data: { status: ReturnStatus.Completed, refund, restock, note } });
     });
   }

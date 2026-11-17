@@ -47,6 +47,9 @@ export class PlaceOrderDto {
   @IsOptional() @IsString() @MaxLength(12) payMethod?: string;
   /** رمز الخصم — يُتحقق منه ويُحسب على الخادم */
   @IsOptional() @IsString() @MaxLength(24) coupon?: string;
+  /** للعميل المسجّل الدخول فقط: الدفع من المحفظة وصرف المكافآت */
+  @IsOptional() @IsInt() @Min(0) @Max(100_000_000) walletUsed?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(100_000_000) pointsUsed?: number;
 }
 
 /**
@@ -60,8 +63,7 @@ export class ManualOrderDto extends PlaceOrderDto {
   @IsOptional() @IsInt() @Min(0) @Max(100_000_000) extraDiscount?: number;
   /** الدفع مُستلم فعلًا (نقدًا في المحل أو تحويلًا وصل) */
   @IsOptional() @IsBoolean() paid?: boolean;
-  /** يُخصم من رصيد مكافآت العميل (برقمه) */
-  @IsOptional() @IsInt() @Min(0) @Max(100_000_000) pointsUsed?: number;
+  // pointsUsed من PlaceOrderDto: في الطلب اليدوي يُخصم من رصيد مكافآت صاحب الرقم
   /** يبدأ «مؤكدًا» (الافتراضي) — التاجر هو من أخذ الطلب */
   @IsOptional() @IsBoolean() confirm?: boolean;
 }

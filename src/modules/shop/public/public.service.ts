@@ -95,6 +95,7 @@ export class ShopPublicService {
       whatsapp: v.whatsapp, hours: v.hours, logo: v.logo, banner: v.banner,
       showcase: v.showcase, appearance: v.appearance, color: v.color, colorDeep: v.colorDeep,
       theme: v.theme, layout: v.layout, plan: v.plan, verified: v.verified,
+      accounts: (process.env.CUSTOMER_MSG_DRIVER || (process.env.NODE_ENV === 'production' ? 'none' : 'console')) !== 'none',
       // منصة المتاجر الجديدة: القالب الفعّال، والباقة برموزها (free|pro|biz)
       template: v.template, planTier: PUBLIC_PLAN[PLAN_BY_CODE[v.plan] ?? 0], customDomain: v.customDomain,
       // `currency` رمز للعرض (ر.ي)، و`currencyCode` رمز ISO 4217 (YER) لبيانات البحث المنظّمة

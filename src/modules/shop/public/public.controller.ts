@@ -29,6 +29,7 @@ import { CheckCouponDto } from '../coupons/coupons.dto';
 import { AskQuestionDto } from '../questions/questions.dto';
 import { RequestReturnDto } from '../returns/returns.dto';
 import { SaveCartDto, ShopCartsService } from '../carts/carts';
+import { CustomerAuth } from '../customers/customer-accounts';
 import { ShopReturnsService } from '../returns/returns.service';
 import { ShopQuestionsService } from '../questions/questions.service';
 import { CouponsService } from '../coupons/coupons.service';
@@ -53,6 +54,7 @@ export class ShopPublicController {
     private readonly questions: ShopQuestionsService,
     private readonly returns: ShopReturnsService,
     private readonly carts: ShopCartsService,
+    private readonly customerAuth: CustomerAuth,
   ) {}
 
   /** متاجر حقيقية للصفحة الرئيسية — قبل `:slug` كي لا يُلتقط اسمًا لمتجر. */
@@ -163,6 +165,7 @@ export class ShopPublicController {
     @Param('slug') slug: string,
     @Body() dto: PlaceOrderDto,
     @Ip() ip: string,
+    @Headers('x-customer-token') customerToken?: string,
   ) {
     const { store } = await this.publicShop.live(slug);
     await this.publicShop.assertNotDemo(store);
@@ -170,7 +173,14 @@ export class ShopPublicController {
     // سيلًا آليًا. قابل للضبط للاختبارات ولمتاجر خلف بوّابة مشتركة.
     this.limit.check(`order:${ip}:${store.id}`, Number(process.env.SHOP_ORDER_LIMIT) || 10, 10 * 60_000);
 
-    const r = await this.orders.place(store, dto);
+    // العميل المسجّل: الطلب برقم حسابه، وله الدفع من محفظته ومكافآته
+    let spend: { customerId: string } | undefined;
+    if (customerToken) {
+      const c = await this.customerAuth.resolve(store, customerToken);
+      dto.phone = c.phone;
+      spend = { customerId: c.id };
+    }
+    const r = await this.orders.place(store, dto, spend);
     return {
       ok: true,
       ref: r.order.ref,
@@ -182,6 +192,7 @@ export class ShopPublicController {
       zone: r.zone,
       payMethod: r.payMethod,
       payStatus: r.payStatus,
+      walletPaid: r.walletPaid,
       // تعليمات التحويل تُرسل مع الرد: العميل في لحظة الدفع الآن
       payNote: r.payMethod === 'cod' ? '' : store.payNote,
       wa: r.wa,

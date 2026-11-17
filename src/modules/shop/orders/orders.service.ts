@@ -61,6 +61,7 @@ import { PushService } from '../../notify/push.service';
 import { CouponsService } from '../coupons/coupons.service';
 import { ShopCartsService } from '../carts/carts';
 import { LoyaltyService } from '../loyalty/loyalty';
+import { CustomerNotices, CustomerWallet } from '../customers/customer-accounts';
 @Injectable()
 export class OrdersService {
   constructor(
@@ -73,6 +74,8 @@ export class OrdersService {
     private readonly coupons: CouponsService,
     private readonly carts: ShopCartsService,
     private readonly loyalty: LoyaltyService,
+    private readonly wallet: CustomerWallet,
+    private readonly notices: CustomerNotices,
   ) {}
 
   /** يُطلق حدث خطاف بعد اكتمال العملية — لا ينتظر ولا يرمي. */
@@ -94,10 +97,10 @@ export class OrdersService {
    * كلاهما. الحجز بخصم شرطي ذرّي (`qty >= المطلوب`) داخل معاملة واحدة —
    * لا سباق ولا حاجة لقفل صفوف.
    */
-  async place(store: ShopStore, dto: PlaceOrderDto) {
+  async place(store: ShopStore, dto: PlaceOrderDto, spend?: { customerId: string }) {
     for (let attempt = 0; attempt < 4; attempt++) {
       try {
-        const placed = await this.placeOnce(store, dto);
+        const placed = await this.placeOnce(store, dto, undefined, spend);
         // بعد التزام المعاملة: لا حدث لطلب قد يُلغى بتراجعها
         this.notify(store, 'order.created', placed.order);
         void this.merchant.newOrder(store, placed.order);
@@ -149,7 +152,12 @@ export class OrdersService {
     store: ShopStore,
     dto: PlaceOrderDto,
     manual?: { deliveryFee?: number; extraDiscount: number; paid: boolean; confirm: boolean; pointsUsed?: number },
+    /** العميل المسجّل الدخول — وحده يصرف من محفظته ومكافآته */
+    spend?: { customerId: string },
   ) {
+    if (!spend && !manual && ((dto.walletUsed ?? 0) > 0 || (dto.pointsUsed ?? 0) > 0)) {
+      throw new BadRequestException('سجّل الدخول لتدفع من محفظتك أو مكافآتك');
+    }
     const storeId = store.id;
     const companyId = store.companyId;
 
@@ -279,10 +287,13 @@ export class OrdersService {
       const coupon = dto.coupon?.trim()
         ? await this.coupons.consume(tx, store, dto.coupon, subtotal, delivery, customerId)
         : null;
-      const points = manual?.pointsUsed ?? 0;
+      if (spend && customerId !== spend.customerId) throw new BadRequestException('الطلب يُسجَّل برقم حسابك');
+      const points = manual?.pointsUsed ?? (spend ? dto.pointsUsed ?? 0 : 0);
       if (points > 0 && !customerId) throw new BadRequestException('اكتب جوال العميل لصرف رصيد مكافآته');
       const discount = Math.min(subtotal + delivery, (coupon?.discount ?? 0) + (manual?.extraDiscount ?? 0) + points);
       const total = Math.max(0, subtotal + delivery - discount);
+      // المحفظة دفعٌ من الإجمالي لا خصم منه، ولا تتجاوزه
+      const walletPaid = spend ? Math.min(dto.walletUsed ?? 0, total) : 0;
 
       const order = await tx.shopOrder.create({
         data: {
@@ -294,7 +305,8 @@ export class OrdersService {
           zoneName: zone?.name ?? '',
           payMethod: method,
           // «عند الاستلام» لا ينتظر إيصالًا؛ وغيره يبدأ بانتظار الدفع
-          payStatus: manual?.paid ? PayStatus.Paid : method === 'cod' ? PayStatus.None : PayStatus.Await,
+          payStatus: manual?.paid || (walletPaid > 0 && walletPaid >= total) ? PayStatus.Paid : method === 'cod' ? PayStatus.None : PayStatus.Await,
+          walletPaid,
           custName: dto.name ?? '',
           custPhone: rawPhone,
           custAddress: dto.address ?? '',
@@ -324,6 +336,7 @@ export class OrdersService {
       });
 
       if (points > 0 && customerId) await this.loyalty.redeem(tx, storeId, companyId, customerId, points, order.id, order.ref);
+      if (walletPaid > 0 && customerId) await this.wallet.debit(tx, { companyId, storeId, customerId }, walletPaid, 'pay', `طلب ${order.ref}`, order.id);
       // سلة الرقم نفسه صارت طلبًا
       await this.carts.recover(tx, storeId, phoneKey, order.id);
 
@@ -359,6 +372,7 @@ export class OrdersService {
         zone: zone?.name ?? '',
         payMethod: method,
         payStatus: order.payStatus,
+        walletPaid,
         wa: waLink(store, order),
       };
     });
@@ -501,8 +515,10 @@ export class OrdersService {
           });
         }
         for (const productId of touched) await recalcStock(tx, productId);
-        // الطلب الملغى لا يستهلك القسيمة
+        // الطلب الملغى لا يستهلك القسيمة، وما دفعه العميل من محفظته ومكافآته يعود له
         await this.coupons.release(tx, storeId, order.couponCode);
+        if (order.walletPaid > 0 && order.customerId) await this.wallet.credit(tx, { companyId: order.companyId, storeId, customerId: order.customerId }, order.walletPaid, 'cancel', `طلب ملغى ${order.ref}`, order.id);
+        await this.loyalty.unredeem(tx, order.id);
       }
       // المكافآت: نسبة المتجر من إجمالي الطلب لرصيد العميل عند الاكتمال
       if (to === OrderStatus.Done) await this.loyalty.earn(tx, order, store.loyaltyRate);
@@ -514,6 +530,7 @@ export class OrdersService {
       });
     });
     this.notify(store, 'order.status_changed', updated, { previousStatus: order.status });
+    void this.notices.orderStatus(store, updated);
     return this.view(updated, store);
   }
 
@@ -630,6 +647,7 @@ export class OrdersService {
       discount: o.discount,
       total: o.total,
       cancelReason: o.status === OrderStatus.Off ? o.cancelReason : '',
+      walletPaid: o.walletPaid,
       // الشحن بعد خروجه فقط — الشركة والرقم ورابط التتبّع
       shipping: [OrderStatus.Shipped, OrderStatus.Done].includes(o.status) && (o.carrierName || o.trackingNo)
         ? { carrier: o.carrierName, trackingNo: o.trackingNo, url: o.trackUrl }

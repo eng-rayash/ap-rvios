@@ -56,6 +56,14 @@ export class LoyaltyService {
     await tx.shopPointsTx.create({ data: { companyId, storeId, customerId, orderId, amount: -amount, kind: 'redeem', note: `طلب ${ref}` } });
   }
 
+  /** طلب أُلغي: ما صُرف فيه من مكافآت يعود للعميل */
+  async unredeem(tx: Tx, orderId: string) {
+    const r = await tx.shopPointsTx.findFirst({ where: { orderId, kind: 'redeem' } });
+    if (!r || (await tx.shopPointsTx.findFirst({ where: { orderId, kind: 'unredeem' }, select: { id: true } }))) return;
+    await tx.shopCustomer.update({ where: { id: r.customerId }, data: { points: { increment: -r.amount } } });
+    await tx.shopPointsTx.create({ data: { companyId: r.companyId, storeId: r.storeId, customerId: r.customerId, orderId, amount: -r.amount, kind: 'unredeem', note: 'طلب ملغى' } });
+  }
+
   async history(ctx: TenantContext, storeId: string, customerId: string) {
     await this.access.require(ctx, storeId);
     const db = this.prisma.forTenant(ctx.companyId);

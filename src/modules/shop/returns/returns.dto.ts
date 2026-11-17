@@ -22,4 +22,6 @@ export class UpdateReturnDto {
   @IsOptional() @IsBoolean() restock?: boolean;
   /** ملاحظة يراها العميل (سبب الرفض مثلًا) */
   @IsOptional() @IsString() @MaxLength(300) note?: string;
+  /** عند الإتمام: المبلغ المُعاد يُضاف لمحفظة العميل في المتجر */
+  @IsOptional() @IsBoolean() toWallet?: boolean;
 }
