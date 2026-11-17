@@ -131,6 +131,29 @@ describe('مراحل الطلب', () => {
     await request(http).patch(`/api/v1/shop/stores/${storeId}/orders/${r.body.id}`).set(auth()).send({ status: 3 }).expect(200);
   });
 
+  it('سعر التكلفة: خاص بالتاجر، يُحفظ في سطر الطلب، والربح يُحسب من الأسطر المعروفة تكلفتها', async () => {
+    const p = await request(http).post(`/api/v1/shop/stores/${storeId}/products`).set(auth())
+      .send({ name: 'منتج بتكلفة', price: 10000, costPrice: 6000, qty: 10, live: true }).expect(201);
+    expect(p.body.costPrice).toBe(6000);
+    const pub = await request(http).get(`/api/v1/shop/storefront/${slug}/catalogue`).expect(200);
+    expect(JSON.stringify(pub.body)).not.toContain('costPrice');
+    expect(JSON.stringify(pub.body)).not.toContain('6000');
+    const one = await request(http).get(`/api/v1/shop/storefront/${slug}/products/${p.body.id}`).expect(200);
+    expect(JSON.stringify(one.body)).not.toContain('6000');
+
+    const r = await request(http).post(`/api/v1/shop/stores/${storeId}/orders`).set(auth())
+      .send({ lines: [{ id: p.body.id, qty: 2 }], name: 'ربح' }).expect(201);
+    // تغيير التكلفة بعد البيع لا يغيّر ربح ما بيع
+    await request(http).patch(`/api/v1/shop/stores/${storeId}/products/${p.body.id}`).set(auth()).send({ costPrice: 9000 }).expect(200);
+    const a = await request(http).get(`/api/v1/shop/stores/${storeId}/analytics?days=7`).set(auth()).expect(200);
+    const top = a.body.topProducts.find((x: { name: string }) => x.name === 'منتج بتكلفة');
+    expect(top.profit).toBe(8000);
+    expect(a.body.profit.amount).toBe(8000);
+    expect(a.body.profit.coverage).toBeGreaterThan(0);
+    expect(a.body.profit.coverage).toBeLessThan(100);
+    await request(http).patch(`/api/v1/shop/stores/${storeId}/orders/${r.body.id}`).set(auth()).send({ status: 3 }).expect(200);
+  });
+
   it('المبيعات تحسب الطلب قيد التجهيز والمشحون، والعدّاد يعرف المرحلتين', async () => {
     const o = await place();
     await move(o.id, { status: 1 }).expect(200);

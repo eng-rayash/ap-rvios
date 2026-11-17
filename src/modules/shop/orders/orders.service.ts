@@ -185,6 +185,7 @@ export class OrdersService {
         variant: string;
         price: number;
         qty: number;
+        cost: number;
       }> = [];
 
       for (const { id, variantId, qty } of wanted.values()) {
@@ -225,6 +226,7 @@ export class OrdersService {
           variant: label,
           price: variant ? variantPrice(product, variant) : product.price,
           qty,
+          cost: product.costPrice ?? 0,
         });
       }
 
@@ -307,6 +309,7 @@ export class OrdersService {
               variant: l.variant,
               price: l.price,
               qty: l.qty,
+              cost: l.cost,
             })),
           },
         },

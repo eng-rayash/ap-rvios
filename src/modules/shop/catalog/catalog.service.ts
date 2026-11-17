@@ -228,6 +228,7 @@ export class CatalogService {
     if (dto.sort !== undefined) f.sort = dto.sort;
     if (dto.image !== undefined) f.image = dto.image.trim();
     if (dto.oldPrice !== undefined) f.oldPrice = dto.oldPrice > 0 ? dto.oldPrice : null;
+    if (dto.costPrice !== undefined) f.costPrice = dto.costPrice > 0 ? dto.costPrice : null;
 
     if (dto.categoryId !== undefined) {
       if (dto.categoryId === null) {

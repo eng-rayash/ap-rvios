@@ -200,14 +200,23 @@ export class AnalyticsService {
         storeId,
         order: { createdAt: { gte: from }, status: { in: AnalyticsService.SOLD } },
       },
-      select: { productId: true, name: true, qty: true, price: true },
+      select: { productId: true, name: true, qty: true, price: true, cost: true },
     });
-    const prod = new Map<string, { productId: string | null; name: string; qty: number; revenue: number }>();
+    // الربح من الأسطر معروفة التكلفة وحدها، ومعه نسبة تغطيتها من المبيعات — لا ربح مخترع
+    let costed = 0;
+    let costTotal = 0;
+    let itemsRevenue = 0;
+    for (const it of items) {
+      itemsRevenue += it.qty * it.price;
+      if (it.cost > 0) { costed += it.qty * it.price; costTotal += it.qty * it.cost; }
+    }
+    const prod = new Map<string, { productId: string | null; name: string; qty: number; revenue: number; profit: number | null }>();
     for (const it of items) {
       const key = it.productId ?? `n:${it.name}`;
-      const row = prod.get(key) ?? { productId: it.productId, name: it.name, qty: 0, revenue: 0 };
+      const row = prod.get(key) ?? { productId: it.productId, name: it.name, qty: 0, revenue: 0, profit: null };
       row.qty += it.qty;
       row.revenue += it.qty * it.price;
+      if (it.cost > 0) row.profit = (row.profit ?? 0) + it.qty * (it.price - it.cost);
       prod.set(key, row);
     }
     const topProducts = [...prod.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 10);
@@ -235,6 +244,12 @@ export class AnalyticsService {
         // نسبة الطلبات إلى الزيارات الفريدة — مؤشر التحويل الأهم للتاجر
         conversion: totalVisits ? Math.round((orders.length / totalVisits) * 1000) / 10 : 0,
         cancelRate: orders.length ? Math.round((byStatus[OrderStatus.Off] / orders.length) * 1000) / 10 : 0,
+      },
+      profit: {
+        // قبل التوصيل والخصم: هامش المنتجات نفسها
+        amount: costed - costTotal,
+        margin: costed ? Math.round(((costed - costTotal) / costed) * 1000) / 10 : 0,
+        coverage: itemsRevenue ? Math.round((costed / itemsRevenue) * 100) : 0,
       },
       series,
       byStatus,

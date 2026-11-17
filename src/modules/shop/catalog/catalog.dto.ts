@@ -59,6 +59,8 @@ export class ProductDto {
   @IsOptional() @IsInt() @Min(0) price?: number;
   /** 0 أو غائب = بلا سعر قديم */
   @IsOptional() @IsInt() @Min(0) oldPrice?: number;
+  /** سعر التكلفة — خاص بالتاجر، ٠ يمحوه */
+  @IsOptional() @IsInt() @Min(0) costPrice?: number;
   @IsOptional() @IsInt() @Min(0) qty?: number;
   @IsOptional() @IsInt() @Min(0) lowStock?: number;
   @IsOptional() @IsBoolean() live?: boolean;

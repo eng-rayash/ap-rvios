@@ -984,6 +984,8 @@ model ShopProduct {
 
   price    Int
   oldPrice Int?    @map("old_price")
+  /// سعر التكلفة (خاص بالتاجر — لا يظهر في واجهة المتجر) لحساب الربح
+  costPrice   Int?     @map("cost_price")
   /// مصدر الحقيقة حين hasVariants=false، ومجموع مخزَّن حين true
   qty      Int     @default(0)
   lowStock Int     @default(0) @map("low_stock")
@@ -1217,6 +1219,8 @@ model ShopOrderItem {
   variant   String  @default("")
   price     Int
   qty       Int
+  /// تكلفة الوحدة وقت الطلب (0 = غير معروفة) — تغيير التكلفة لاحقًا لا يعيد كتابة ربح ما بيع
+  cost      Int     @default(0)
 
   order ShopOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
