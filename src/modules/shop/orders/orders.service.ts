@@ -630,6 +630,10 @@ export class OrdersService {
       discount: o.discount,
       total: o.total,
       cancelReason: o.status === OrderStatus.Off ? o.cancelReason : '',
+      // الشحن بعد خروجه فقط — الشركة والرقم ورابط التتبّع
+      shipping: [OrderStatus.Shipped, OrderStatus.Done].includes(o.status) && (o.carrierName || o.trackingNo)
+        ? { carrier: o.carrierName, trackingNo: o.trackingNo, url: o.trackUrl }
+        : null,
       // رصيد المكافآت لصاحب الطلب — يراه من رابط طلبه
       points: store.loyaltyRate > 0 && o.customerId ? (await this.prisma.shopCustomer.findUnique({ where: { id: o.customerId }, select: { points: true } }))?.points ?? 0 : null,
       // المعرّف لتقييم السطر بعد الاستلام — لا يكشف شيئًا لا يملكه صاحب الرقم

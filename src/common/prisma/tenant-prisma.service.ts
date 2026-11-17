@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 /**
@@ -25,7 +25,7 @@ import { PrismaClient } from '@prisma/client';
  *   ٣. حارس الاستعلام — هذا الملف
  */
 @Injectable()
-export class TenantPrismaService extends PrismaClient implements OnModuleInit {
+export class TenantPrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(TenantPrismaService.name);
 
   /**
@@ -78,6 +78,7 @@ export class TenantPrismaService extends PrismaClient implements OnModuleInit {
     'shopKyc',
     'shopKycDoc',
     'shopVisitStat',
+    'shopCarrier',
     'shopOrder',
     'shopOrderItem',
     'shopReview',
@@ -103,6 +104,11 @@ export class TenantPrismaService extends PrismaClient implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     await this.$connect();
+  }
+
+  /** إغلاق التطبيق يعيد اتصالات القاعدة — وإلا بقي كل تطبيق مغلق (اختبار، إعادة نشر) يحجز حصّته */
+  async onModuleDestroy(): Promise<void> {
+    await this.$disconnect();
   }
 
   /**

@@ -1213,6 +1213,21 @@ model ShopKycDoc {
   @@map("shop_kyc_docs")
 }
 
+/// شركات شحن المتجر — رابط التتبّع يحمل {n} مكان رقم الشحنة
+model ShopCarrier {
+  id        String   @id @default(uuid())
+  companyId String   @map("company_id")
+  storeId   String   @map("store_id")
+  name      String
+  trackUrl  String   @default("") @map("track_url")
+  phone     String   @default("")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([storeId])
+  @@map("shop_carriers")
+}
+
 model ShopProductVariant {
   id        String  @id @default(uuid())
   companyId String  @map("company_id")
@@ -1328,6 +1343,11 @@ model ShopOrder {
   couponCode  String @default("") @map("coupon_code")
   /// سبب الإلغاء — يراه العميل في تتبّع طلبه
   cancelReason String @default("") @map("cancel_reason")
+  /// الشحن: اسم الشركة ورقم الشحنة ورابط تتبّعها (يبقى لو حُذفت الشركة)
+  carrierName  String @default("") @map("carrier_name")
+  trackingNo   String @default("") @map("tracking_no")
+  trackUrl     String @default("") @map("track_url")
+  trackUrlTemplate String @default("") @map("track_url_template")
   /// مصدر الطلب: store (واجهة المتجر) · manual (أدخله التاجر لطلب هاتفي أو من واتساب)
   source       String @default("store")
   discount    Int    @default(0)
