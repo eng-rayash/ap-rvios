@@ -1401,10 +1401,26 @@ model ShopVisit {
   /// YYYY-MM-DD (UTC)
   day       String
   count     Int    @default(0)
+  /// كل الصفحات المعروضة في اليوم (الزوّار الفريدون في count)
+  views     Int    @default(0)
 
   @@id([storeId, day])
   @@index([companyId])
   @@map("shop_visits")
+}
+
+/// مجاميع الزيارات اليومية بأبعاد: device · hour · path · source — أعداد فقط، بلا بيانات زائر
+model ShopVisitStat {
+  companyId String @map("company_id")
+  storeId   String @map("store_id")
+  day       String
+  dim       String
+  key       String
+  count     Int    @default(0)
+
+  @@id([storeId, day, dim, key])
+  @@index([companyId])
+  @@map("shop_visit_stats")
 }
 
 /// بصمة زائر يومية لعدّ الفريدين بدل كل تحديث للصفحة. تجزئة فقط (لا IP خام)

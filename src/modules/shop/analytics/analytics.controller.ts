@@ -28,6 +28,16 @@ export class AnalyticsController {
     return this.analytics.analytics(ctx, storeId, Number(days) || 30);
   }
 
+  @ShopSection('reports')
+  @Get('analytics/visitors')
+  visitors(
+    @Tenant() ctx: TenantContext,
+    @Param('storeId', ParseUUIDPipe) storeId: string,
+    @Query('days') days?: string,
+  ) {
+    return this.analytics.visitors(ctx, storeId, Number(days) || 30);
+  }
+
   @ShopSection('products')
   @Get('low-stock')
   lowStock(

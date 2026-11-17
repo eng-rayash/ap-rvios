@@ -18,6 +18,7 @@ import { Public } from '../../../common/tenant/tenant.guard';
 import { PlaceOrderDto } from '../orders/orders.dto';
 import { MAX_IMAGE_BYTES, UploadsService, type UploadedBinary } from '../../uploads/uploads.service';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { VisitDto } from '../analytics/visitor-stats';
 import { OrdersService } from '../orders/orders.service';
 import { PublicRateLimit } from './rate-limit';
 import { ShopPublicService } from './public.service';
@@ -140,9 +141,11 @@ export class ShopPublicController {
     @Param('slug') slug: string,
     @Ip() ip: string,
     @Headers('user-agent') ua = '',
+    @Body() dto: VisitDto = {},
   ) {
     const { store } = await this.publicShop.live(slug);
-    return this.analytics.recordVisit(store, ip, ua);
+    this.limit.check(`visit:${ip}:${store.id}`, 300, 10 * 60_000);
+    return this.analytics.recordVisit(store, ip, ua, { path: dto?.path, ref: dto?.ref });
   }
 
   /** حفظ السلة حين يكتب العميل جواله في صفحة الإتمام — لتذكيره إن لم يُكمل (بإشعار في الصفحة) */
