@@ -1112,6 +1112,25 @@ model ShopSection {
   @@map("shop_sections")
 }
 
+/// سلة المحذوفات — لقطة كاملة لما حُذف تُستعاد كما كانت، وتُحذف نهائيًا بعد expiresAt
+model ShopTrash {
+  id        String   @id @default(uuid())
+  companyId String   @map("company_id")
+  storeId   String   @map("store_id")
+  /// product
+  kind      String   @default("product")
+  /// معرّف العنصر الأصلي — يعود به عند الاستعادة
+  refId     String   @map("ref_id")
+  name      String   @default("")
+  image     String   @default("")
+  data      Json
+  deletedAt DateTime @default(now()) @map("deleted_at")
+  expiresAt DateTime @map("expires_at")
+
+  @@index([storeId, deletedAt])
+  @@map("shop_trash")
+}
+
 model ShopProductVariant {
   id        String  @id @default(uuid())
   companyId String  @map("company_id")

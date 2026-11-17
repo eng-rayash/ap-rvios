@@ -1,3 +1,4 @@
+import { snapshotImages } from '../shop/catalog/trash-snapshot';
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 
 import { TenantPrismaService } from '../../common/prisma/tenant-prisma.service';
@@ -66,13 +67,15 @@ export class StoreImagesGc implements OnModuleInit, OnModuleDestroy {
 
   /** الروابط التي ما زال المتجر يستعملها — صوره وإيصالاته */
   private async referenced(storeId: string): Promise<Set<string>> {
-    const [store, products, gallery, variants, orders, invoices] = await Promise.all([
+    const [store, products, gallery, variants, orders, invoices, trash] = await Promise.all([
       this.prisma.shopStore.findUnique({ where: { id: storeId }, select: { logo: true, banner: true, showcase: true, appearance: true } }),
       this.prisma.shopProduct.findMany({ where: { storeId }, select: { image: true } }),
       this.prisma.shopProductImage.findMany({ where: { storeId }, select: { url: true } }),
       this.prisma.shopProductVariant.findMany({ where: { storeId }, select: { image: true } }),
       this.prisma.shopOrder.findMany({ where: { storeId, payProof: { not: '' } }, select: { payProof: true } }),
       this.prisma.platformInvoice.findMany({ where: { storeRef: storeId, proofKey: { not: null } }, select: { proofKey: true } }),
+      // ما في سلة المحذوفات قد يُستعاد — صوره ما زالت مستعملة
+      this.prisma.shopTrash.findMany({ where: { storeId }, select: { data: true } }),
     ]);
     const urls = [
       store?.logo, store?.banner, store?.showcase,
@@ -80,6 +83,7 @@ export class StoreImagesGc implements OnModuleInit, OnModuleDestroy {
       ...Object.values(((store?.appearance as { images?: Record<string, unknown> } | null)?.images) ?? {}).filter((v): v is string => typeof v === 'string'),
       ...products.map((p) => p.image), ...gallery.map((g) => g.url), ...variants.map((v) => v.image),
       ...orders.map((o) => o.payProof), ...invoices.map((i) => i.proofKey),
+      ...trash.flatMap((t) => snapshotImages(t.data)),
     ];
     const r2 = this.uploads.cloud!;
     return new Set(urls.filter((u): u is string => !!u).map((u) => r2.keyOf(u)).filter((k): k is string => !!k));

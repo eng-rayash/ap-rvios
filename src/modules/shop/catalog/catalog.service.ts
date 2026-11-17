@@ -1,3 +1,4 @@
+import { trashProduct } from './trash';
 import {
   BadRequestException,
   ConflictException,
@@ -312,9 +313,9 @@ export class CatalogService {
     const db = this.prisma.forTenant(ctx.companyId);
     const p = await db.shopProduct.findFirst({ where: { id, storeId }, select: { id: true } });
     if (!p) throw new NotFoundException('المنتج غير موجود');
-    await db.shopProduct.delete({ where: { id } });
-    this.gc.schedule(storeId);
-    return { ok: true };
+    // إلى سلة المحذوفات (٣٠ يومًا) لا حذف نهائي — صوره تبقى ما دام فيها
+    await this.prisma.$transaction((tx) => trashProduct(tx, ctx.companyId, storeId, id));
+    return { ok: true, trashed: true };
   }
 
   // ── المعرض: استبدال ضمن حدّ الباقة، والأول غلاف ─────────

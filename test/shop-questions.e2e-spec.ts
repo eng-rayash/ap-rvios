@@ -141,6 +141,37 @@ describe('أسئلة المنتجات', () => {
     await request(http).delete(`${S}/${off.body.id}`).set(auth(a.token)).expect(200);
   });
 
+  it('سلة المحذوفات: الحذف إليها، والاستعادة كما كان بالمعرّف نفسه وبأسئلته وخياراته، والحذف النهائي', async () => {
+    const P = `/api/v1/shop/stores/${storeId}`;
+    const p = await request(http).post(`${P}/products`).set(auth(a.token)).send({
+      name: 'قميص للسلة', price: 3000, opt1Name: 'المقاس', variants: [{ v1: 'M', qty: 2 }, { v1: 'L', qty: 3 }], live: true,
+    }).expect(201);
+    await request(http).post(`/api/v1/shop/storefront/${slug}/products/${p.body.id}/questions`).send({ question: 'هل القماش قطن؟' }).expect(201);
+    const q = (await request(http).get(`${P}/questions?status=0`).set(auth(a.token)).expect(200)).body.questions.find((x: { question: string }) => x.question === 'هل القماش قطن؟');
+    await request(http).patch(`${P}/questions/${q.id}`).set(auth(a.token)).send({ answer: 'نعم' }).expect(200);
+
+    const del = await request(http).delete(`${P}/products/${p.body.id}`).set(auth(a.token)).expect(200);
+    expect(del.body.trashed).toBe(true);
+    await request(http).get(`${P}/products/${p.body.id}`).set(auth(a.token)).expect(404);
+    const bin = await request(http).get(`${P}/trash`).set(auth(a.token)).expect(200);
+    const t = bin.body.find((x: { refId: string }) => x.refId === p.body.id);
+    expect(t.name).toBe('قميص للسلة');
+    await request(http).get(`${P}/trash`).set(auth(b.token)).expect(404);
+
+    await request(http).post(`${P}/trash/${t.id}/restore`).set(auth(a.token)).expect(201);
+    const back = await request(http).get(`${P}/products/${p.body.id}`).set(auth(a.token)).expect(200);
+    expect(back.body.variants).toHaveLength(2);
+    expect(back.body.qty).toBe(5);
+    const pub = await request(http).get(`/api/v1/shop/storefront/${slug}/products/${p.body.id}/questions`).expect(200);
+    expect(pub.body.questions[0].answer).toBe('نعم');
+    expect((await request(http).get(`${P}/trash`).set(auth(a.token)).expect(200)).body.find((x: { refId: string }) => x.refId === p.body.id)).toBeUndefined();
+
+    await request(http).delete(`${P}/products/${p.body.id}`).set(auth(a.token)).expect(200);
+    const t2 = (await request(http).get(`${P}/trash`).set(auth(a.token)).expect(200)).body.find((x: { refId: string }) => x.refId === p.body.id);
+    await request(http).delete(`${P}/trash/${t2.id}`).set(auth(a.token)).expect(200);
+    await request(http).post(`${P}/trash/${t2.id}/restore`).set(auth(a.token)).expect(404);
+  });
+
   it('تاجر آخر لا يرى أسئلة المتجر ولا يعدّلها، ومنتج مجهول ٤٠٤', async () => {
     const list = await request(http).get(`/api/v1/shop/stores/${storeId}/questions`).set(auth(a.token)).expect(200);
     const id = list.body.questions[0].id;
