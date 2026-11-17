@@ -26,6 +26,8 @@ import { ShopReviewsService } from '../reviews/reviews.service';
 import { SubmitReviewDto } from '../reviews/reviews.dto';
 import { CheckCouponDto } from '../coupons/coupons.dto';
 import { AskQuestionDto } from '../questions/questions.dto';
+import { RequestReturnDto } from '../returns/returns.dto';
+import { ShopReturnsService } from '../returns/returns.service';
 import { ShopQuestionsService } from '../questions/questions.service';
 import { CouponsService } from '../coupons/coupons.service';
 
@@ -47,6 +49,7 @@ export class ShopPublicController {
     private readonly reviews: ShopReviewsService,
     private readonly coupons: CouponsService,
     private readonly questions: ShopQuestionsService,
+    private readonly returns: ShopReturnsService,
   ) {}
 
   /** متاجر حقيقية للصفحة الرئيسية — قبل `:slug` كي لا يُلتقط اسمًا لمتجر. */
@@ -208,7 +211,17 @@ export class ShopPublicController {
     const t = await this.orders.track(store, ref);
     // أيّ الأسطر قُيّم — صاحب الطلب يقيّم ما بقي بعد اكتماله
     const done = await this.reviews.reviewedByRef(store.id, t.ref);
-    return { ...t, items: t.items.map((i) => ({ ...i, reviewed: done.has(i.id) })) };
+    const { id: orderId, ...pub } = t;
+    return { ...pub, items: t.items.map((i) => ({ ...i, reviewed: done.has(i.id) })), return: await this.returns.forTracking(store.id, orderId) };
+  }
+
+  /** طلب استرجاع لطلب مكتمل — الإثبات رقم الطلب، بحدّ معدّل */
+  @Post(':slug/orders/:ref/return')
+  async requestReturn(@Param('slug') slug: string, @Param('ref') ref: string, @Body() dto: RequestReturnDto, @Ip() ip: string) {
+    const { store } = await this.publicShop.live(slug);
+    await this.publicShop.assertNotDemo(store);
+    this.limit.check(`return:${ip}:${store.id}`, 5, 60 * 60_000);
+    return this.returns.request(store, ref, dto);
   }
 
   /** تقييم سطر من طلب مكتمل — الإثبات رقم الطلب، كالتتبّع والإيصال */

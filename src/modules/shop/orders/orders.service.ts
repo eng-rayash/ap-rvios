@@ -388,7 +388,7 @@ export class OrdersService {
       db.shopOrder.groupBy({ by: ['status'], where: this.filter(storeId, undefined, q), _count: { _all: true } }),
     ]);
 
-    const counts: Record<string, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    const counts: Record<string, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
     for (const g of grouped) counts[g.status] = g._count._all;
 
     return {
@@ -604,6 +604,7 @@ export class OrdersService {
     if (!o) throw new NotFoundException('لا يوجد طلب بهذا الرقم');
     const awaiting = o.payMethod !== 'cod' && o.payStatus !== PayStatus.Paid;
     return {
+      id: o.id,
       ref: o.ref,
       status: o.status,
       payMethod: o.payMethod,

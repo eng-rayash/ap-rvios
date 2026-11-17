@@ -1202,9 +1202,36 @@ model ShopOrder {
   store    ShopStore       @relation(fields: [storeId], references: [id], onDelete: Cascade)
   customer ShopCustomer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
   items    ShopOrderItem[]
+  returns ShopReturn[]
 
   @@index([storeId, status, createdAt])
   @@map("shop_orders")
+}
+
+/// مرتجع طلب — status: 0 طلب العميل · 1 مقبول · 2 مرفوض · 3 مكتمل (الطلب يصير «مُرجَعًا»)
+model ShopReturn {
+  id        String   @id @default(uuid())
+  companyId String   @map("company_id")
+  storeId   String   @map("store_id")
+  orderId   String   @map("order_id")
+  reason    String   @default("") @db.Text
+  status    Int      @default(0)
+  /// المبلغ المُعاد للعميل (حتى إجمالي الطلب)
+  refund    Int      @default(0)
+  /// إعادة الكميات للمخزون عند الإتمام
+  restock   Boolean  @default(true)
+  /// ملاحظة يراها العميل في تتبّع طلبه
+  note      String   @default("")
+  /// customer · merchant
+  source    String   @default("customer")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  order ShopOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, status])
+  @@index([orderId])
+  @@map("shop_returns")
 }
 
 model ShopOrderItem {

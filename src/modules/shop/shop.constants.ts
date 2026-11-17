@@ -23,6 +23,8 @@ export enum OrderStatus {
   /** أُضيفتا بعد الأربع الأولى، فالأرقام لا تتبع الترتيب: التسلسل في ORDER_FLOW */
   Preparing = 4,
   Shipped = 5,
+  /** أُتمّ مرتجعه — خارج المبيعات (يصل إليه من المرتجعات وحدها، لا من تغيير الحالة) */
+  Returned = 6,
 }
 
 /** ترتيب المراحل كما يراها التاجر والعميل (الإلغاء خارجها) */
@@ -49,6 +51,7 @@ export const ORDER_NEXT: Record<OrderStatus, OrderStatus[]> = {
   [OrderStatus.Shipped]: [OrderStatus.Done, OrderStatus.Off],
   [OrderStatus.Done]: [],
   [OrderStatus.Off]: [],
+  [OrderStatus.Returned]: [],
 };
 
 export const ORDER_LABEL: Record<OrderStatus, string> = {
@@ -58,6 +61,7 @@ export const ORDER_LABEL: Record<OrderStatus, string> = {
   [OrderStatus.Off]: 'ملغى',
   [OrderStatus.Preparing]: 'قيد التجهيز',
   [OrderStatus.Shipped]: 'تم الشحن',
+  [OrderStatus.Returned]: 'مُرجَع',
 };
 
 /**

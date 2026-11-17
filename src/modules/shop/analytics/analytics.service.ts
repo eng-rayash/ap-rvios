@@ -180,7 +180,7 @@ export class AnalyticsService {
     const sold = orders.filter((o) => isSold(o.status));
     const revenue = sold.reduce((a, o) => a + o.total, 0);
     const totalVisits = series.reduce((a, s) => a + s.visits, 0);
-    const byStatus: Record<string, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    const byStatus: Record<string, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
     const byPay: Record<string, { orders: number; revenue: number }> = {};
     const byZone: Record<string, { orders: number; revenue: number }> = {};
     for (const o of orders) {

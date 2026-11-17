@@ -69,6 +69,8 @@ import { CouponsController } from './modules/shop/coupons/coupons.controller';
 import { CouponsService } from './modules/shop/coupons/coupons.service';
 import { ShopQuestionsController } from './modules/shop/questions/questions.controller';
 import { ShopQuestionsService } from './modules/shop/questions/questions.service';
+import { ShopReturnsController } from './modules/shop/returns/returns.controller';
+import { ShopReturnsService } from './modules/shop/returns/returns.service';
 import { OrdersService } from './modules/shop/orders/orders.service';
 import { ZonesService } from './modules/shop/orders/zones.service';
 import { ShopPublicController } from './modules/shop/public/public.controller';
@@ -172,6 +174,7 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     OrdersController,
     CouponsController,
     ShopQuestionsController,
+    ShopReturnsController,
     AnalyticsController,
     ShopPublicController,
     CategoriesController,
@@ -239,6 +242,7 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     ZonesService,
     CouponsService,
     ShopQuestionsService,
+    ShopReturnsService,
     AnalyticsService,
     ShopPublicService,
     PublicRateLimit,
