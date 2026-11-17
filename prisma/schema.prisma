@@ -1131,6 +1131,27 @@ model ShopTrash {
   @@map("shop_trash")
 }
 
+/// سلة متروكة — تُحفظ حين يكتب العميل جواله في صفحة الإتمام. status: 0 متروكة · 1 أُكملت بطلب
+model ShopCart {
+  id               String    @id @default(uuid())
+  companyId        String    @map("company_id")
+  storeId          String    @map("store_id")
+  /// E.164 — نفس مفتاح العميل في الطلبات
+  phone            String
+  name             String    @default("")
+  items            Json
+  subtotal         Int       @default(0)
+  status           Int       @default(0)
+  recoveredOrderId String?   @map("recovered_order_id")
+  remindedAt       DateTime? @map("reminded_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@unique([storeId, phone])
+  @@index([storeId, status, updatedAt])
+  @@map("shop_carts")
+}
+
 model ShopProductVariant {
   id        String  @id @default(uuid())
   companyId String  @map("company_id")

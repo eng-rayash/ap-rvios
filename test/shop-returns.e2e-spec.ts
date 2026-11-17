@@ -95,6 +95,30 @@ describe('المرتجعات', () => {
     expect(a.body.byStatus['6']).toBe(1);
   });
 
+  it('السلات المتروكة: تُحفظ بأسعار القاعدة وتظهر بعد مهلة برسالة تذكير، والطلب بالرقم نفسه يستعيدها', async () => {
+    const save = (phone: string) => request(http).post(`/api/v1/shop/storefront/${slug}/carts`).send({ phone, name: 'ليلى', lines: [{ id: productId, qty: 2 }] });
+    await save('0777000321').expect(201);
+    await save('777000321').expect(201); // الرقم نفسه بصيغة أخرى: سلة واحدة
+    await save('123').expect(400);
+    let l = await request(http).get(`/api/v1/shop/stores/${storeId}/carts`).set(auth()).expect(200);
+    expect(l.body.carts).toHaveLength(0); // لم تمض المهلة
+    await prisma.shopCart.updateMany({ where: { storeId }, data: { updatedAt: new Date(Date.now() - 3_600_000) } });
+    l = await request(http).get(`/api/v1/shop/stores/${storeId}/carts`).set(auth()).expect(200);
+    expect(l.body.carts).toHaveLength(1);
+    expect(l.body.carts[0].subtotal).toBe(20000);
+    expect(decodeURIComponent(l.body.carts[0].wa)).toContain('تركت سلتك');
+    expect(l.body.stats.openValue).toBe(20000);
+    await request(http).post(`/api/v1/shop/stores/${storeId}/carts/${l.body.carts[0].id}/reminded`).set(auth()).expect(201);
+    await request(http).get(`/api/v1/shop/stores/${storeId}/carts`).set(auth(other.token)).expect(404);
+
+    await request(http).post(`/api/v1/shop/storefront/${slug}/orders`).send({ lines: [{ id: productId, qty: 1 }], name: 'ليلى', phone: '+967777000321' }).expect(201);
+    l = await request(http).get(`/api/v1/shop/stores/${storeId}/carts`).set(auth()).expect(200);
+    expect(l.body.carts).toHaveLength(0);
+    expect(l.body.stats.recovered).toBe(1);
+    const r = await request(http).get(`/api/v1/shop/stores/${storeId}/carts?status=1`).set(auth()).expect(200);
+    expect(r.body.carts[0].recoveredOrderId).toBeTruthy();
+  });
+
   it('التاجر يسجّل مرتجعًا مكتملًا فورًا بلا إعادة مخزون، والرفض يظهر للعميل بملاحظته', async () => {
     const o = await doneOrder(1);
     await request(http).post(`/api/v1/shop/stores/${storeId}/returns`).set(auth()).send({ orderId: o.id }).expect(409); // مؤكد فقط

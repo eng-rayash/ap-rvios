@@ -27,6 +27,7 @@ import { SubmitReviewDto } from '../reviews/reviews.dto';
 import { CheckCouponDto } from '../coupons/coupons.dto';
 import { AskQuestionDto } from '../questions/questions.dto';
 import { RequestReturnDto } from '../returns/returns.dto';
+import { SaveCartDto, ShopCartsService } from '../carts/carts';
 import { ShopReturnsService } from '../returns/returns.service';
 import { ShopQuestionsService } from '../questions/questions.service';
 import { CouponsService } from '../coupons/coupons.service';
@@ -50,6 +51,7 @@ export class ShopPublicController {
     private readonly coupons: CouponsService,
     private readonly questions: ShopQuestionsService,
     private readonly returns: ShopReturnsService,
+    private readonly carts: ShopCartsService,
   ) {}
 
   /** متاجر حقيقية للصفحة الرئيسية — قبل `:slug` كي لا يُلتقط اسمًا لمتجر. */
@@ -141,6 +143,15 @@ export class ShopPublicController {
   ) {
     const { store } = await this.publicShop.live(slug);
     return this.analytics.recordVisit(store, ip, ua);
+  }
+
+  /** حفظ السلة حين يكتب العميل جواله في صفحة الإتمام — لتذكيره إن لم يُكمل (بإشعار في الصفحة) */
+  @Post(':slug/carts')
+  async saveCart(@Param('slug') slug: string, @Body() dto: SaveCartDto, @Ip() ip: string) {
+    const { store } = await this.publicShop.live(slug);
+    await this.publicShop.assertNotDemo(store);
+    this.limit.check(`cart:${ip}:${store.id}`, 30, 10 * 60_000);
+    return this.carts.save(store, dto);
   }
 
   /** الطلب يُسجَّل هنا **قبل** أن يفتح العميل واتساب (§٤.١). */

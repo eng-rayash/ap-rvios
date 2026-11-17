@@ -59,6 +59,7 @@ export function deliveryFor(
 import { PAY_METHODS, symbolOf } from '../shop.constants';
 import { PushService } from '../../notify/push.service';
 import { CouponsService } from '../coupons/coupons.service';
+import { ShopCartsService } from '../carts/carts';
 @Injectable()
 export class OrdersService {
   constructor(
@@ -69,6 +70,7 @@ export class OrdersService {
     private readonly emails: StoreEmails,
     private readonly push: PushService,
     private readonly coupons: CouponsService,
+    private readonly carts: ShopCartsService,
   ) {}
 
   /** يُطلق حدث خطاف بعد اكتمال العملية — لا ينتظر ولا يرمي. */
@@ -315,6 +317,9 @@ export class OrdersService {
         },
         include: { items: true },
       });
+
+      // سلة الرقم نفسه صارت طلبًا
+      await this.carts.recover(tx, storeId, phoneKey, order.id);
 
       // حجز الكمية — خصم شرطي ذرّي؛ فشله يعني أن غيرنا سبقنا فيُرجَع كل شيء
       const touched = new Set<string>();
