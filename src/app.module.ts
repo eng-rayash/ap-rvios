@@ -75,6 +75,7 @@ import { ShopSectionsController, ShopSectionsService } from './modules/shop/sect
 import { ShopTrashController, ShopTrashService } from './modules/shop/catalog/trash';
 import { ShopCartsController, ShopCartsService } from './modules/shop/carts/carts';
 import { LoyaltyController, LoyaltyService } from './modules/shop/loyalty/loyalty';
+import { PlatformKycController, ShopKycController, ShopKycService } from './modules/shop/kyc/kyc';
 import { ShopReturnsService } from './modules/shop/returns/returns.service';
 import { OrdersService } from './modules/shop/orders/orders.service';
 import { ZonesService } from './modules/shop/orders/zones.service';
@@ -185,6 +186,8 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     ShopTrashController,
     ShopCartsController,
     LoyaltyController,
+    ShopKycController,
+    PlatformKycController,
     AnalyticsController,
     ShopPublicController,
     CategoriesController,
@@ -258,6 +261,7 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     ShopTrashService,
     ShopCartsService,
     LoyaltyService,
+    ShopKycService,
     AnalyticsService,
     ShopPublicService,
     PublicRateLimit,

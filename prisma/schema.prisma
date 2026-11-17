@@ -936,6 +936,7 @@ model ShopStore {
   orders       ShopOrder[]
   aiConversations AiConversation[]
   aiUsage      AiUsage[]
+  kyc          ShopKyc?
 
   @@index([companyId])
   @@map("shop_stores")
@@ -1169,6 +1170,47 @@ model ShopPointsTx {
   @@index([customerId, createdAt])
   @@index([orderId])
   @@map("shop_points_tx")
+}
+
+/// طلب توثيق المتجر — 0 مسودة · 1 قيد المراجعة · 2 موثَّق · 3 مرفوض
+model ShopKyc {
+  id          String    @id @default(uuid())
+  companyId   String    @map("company_id")
+  storeId     String    @unique @map("store_id")
+  store       ShopStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  /// person · business
+  kind        String    @default("person")
+  legalName   String    @default("") @map("legal_name")
+  crNumber    String    @default("") @map("cr_number")
+  status      Int       @default(0)
+  reviewNote  String    @default("") @map("review_note")
+  submittedAt DateTime? @map("submitted_at")
+  reviewedAt  DateTime? @map("reviewed_at")
+  reviewedBy  String?   @map("reviewed_by")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  docs        ShopKycDoc[]
+
+  @@index([status, submittedAt])
+  @@map("shop_kyc")
+}
+
+/// صور وثائق التوثيق — في القاعدة لا في الحاوية العامة، وتُحذف بعد القرار بـ٣٠ يومًا
+model ShopKycDoc {
+  id        String   @id @default(uuid())
+  kycId     String   @map("kyc_id")
+  kyc       ShopKyc  @relation(fields: [kycId], references: [id], onDelete: Cascade)
+  companyId String   @map("company_id")
+  storeId   String   @map("store_id")
+  /// id_front · id_back · selfie · cr
+  kind      String
+  mime      String
+  size      Int
+  data      Bytes
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([kycId])
+  @@map("shop_kyc_docs")
 }
 
 model ShopProductVariant {
