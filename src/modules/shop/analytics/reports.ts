@@ -7,6 +7,7 @@ import { TenantContext } from '../../../common/tenant/tenant-context';
 import { ShopStoreAccessService } from '../shop-store-access.service';
 import { OrderStatus, SOLD_STATUSES } from '../shop.constants';
 import { localHour } from './visitor-stats';
+import { PlanFeature } from '../plan-feature.guard';
 
 const DAY = 86_400_000;
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -187,6 +188,7 @@ export class ShopReportsService {
   }
 }
 
+@PlanFeature('advancedReports')
 @Controller('shop/stores/:storeId')
 export class ShopReportsController {
   constructor(private readonly reports: ShopReportsService) {}

@@ -54,7 +54,7 @@ export function templateCost(id: string, plan: ShopPlan, base: number): number |
   const t = STORE_TEMPLATES[id];
   if (!t || t.tier === 'free') return 0;
   if (plan === ShopPlan.Basic) return null;
-  if (plan === ShopPlan.Pro) {
+  if (plan >= ShopPlan.Pro) {
     if (t.tier === 'standard') return 0;
     return Math.round(base * BIZ_SIGNATURE_RATE);
   }

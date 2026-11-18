@@ -7,6 +7,9 @@ import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { DomainErrorFilter } from '../src/common/errors/domain-error.filter';
 import { TenantPrismaService } from '../src/common/prisma/tenant-prisma.service';
+import { DEFAULT_PLANS } from '../src/modules/shop-billing/plans';
+const FREE = DEFAULT_PLANS.plans.basic.limits;
+
 import { MerchantNotifier } from '../src/modules/notify/merchant-notifier.service';
 import { SubscriptionReminders } from '../src/modules/notify/subscription-reminders.service';
 
@@ -118,15 +121,15 @@ describe('واجهة المتجر: الكتالوج والإشعارات', () =>
   });
 
   it('الكتالوج يحترم حدّ الباقة: الأقدم يبقى والزائد يُخفى', async () => {
-    // الباقة المجانية ١٥ منتجًا — نملأ حتى ١٧ منتجًا حيًّا
-    for (let i = 0; i < 15; i++) {
+    // حدّ المجانية من إعداد الباقات — نملأ حتى ما بعده
+    for (let i = 0; i < FREE.products!; i++) {
       await post(`/shop/stores/${storeId}/products`, { name: `منتج ${i}`, price: 100, qty: 1 }).expect((res) => {
         if (![201, 403, 409].includes(res.status)) throw new Error(`unexpected ${res.status}`);
       });
     }
     const live = await prisma.shopProduct.count({ where: { storeId, live: true } });
     const r = await request(http).get(`/api/v1/shop/storefront/${slug}/catalogue`).expect(200);
-    expect(r.body.products.length).toBe(Math.min(live, 15));
+    expect(r.body.products.length).toBe(Math.min(live, FREE.products!));
   });
 
   it('الرابط القديم يعيد وجهته، والمجهول ٤٠٤', async () => {

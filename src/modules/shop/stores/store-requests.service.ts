@@ -19,6 +19,7 @@ const OPEN = [InvoiceStatus.Unpaid, InvoiceStatus.UnderReview];
  * وتعمل الباقة والقالب — أو يرفضه فيُحذف ويتحرر رابطه.
  */
 import { PlatformAlerts } from '../../notify/platform-alerts.service';
+import { plansConfig } from '../../shop-billing/plans';
 @Injectable()
 export class StoreRequestsService {
   constructor(
@@ -33,7 +34,7 @@ export class StoreRequestsService {
 
   async create(ctx: TenantContext, dto: CreateStoreDto) {
     const plan = dto.plan!;
-    const months = dto.months === 12 ? 12 : 1;
+    const months = dto.months ?? plansConfig().periods[0];
     const { store } = await this.stores.create(ctx, dto, { pending: true });
     try {
       await this.invoices.create(ctx, { storeRef: store.id, kind: InvoiceKind.Subscription, plan, months });
@@ -57,7 +58,7 @@ export class StoreRequestsService {
     void this.alerts.raise({
       kind: 'store_request',
       title: `طلب متجر جديد — ${store.name}`,
-      body: `المتجر: ${store.name} (${store.slug})\nالباقة: ${plan} · ${months === 12 ? 'سنوي' : 'شهري'}\nالمستحق: ${due} ${open[0]?.currency ?? 'USD'}`,
+      body: `المتجر: ${store.name} (${store.slug})\nالباقة: ${plan} · ${months} أشهر\nالمستحق: ${due} ${open[0]?.currency ?? 'USD'}`,
       link: '/platform/requests',
       data: { storeId: store.id },
     });

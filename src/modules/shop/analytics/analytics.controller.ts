@@ -4,6 +4,7 @@ import { Tenant } from '../../../common/tenant/tenant.guard';
 import { TenantContext } from '../../../common/tenant/tenant-context';
 import { AnalyticsService } from './analytics.service';
 import { ShopSection } from '../../../common/tenant/shop-sections';
+import { PlanFeature } from '../plan-feature.guard';
 
 /** النظرة العامة والتحليلات والتقارير — قراءة فقط. */
 @Controller('shop/stores/:storeId')
@@ -29,6 +30,7 @@ export class AnalyticsController {
   }
 
   @ShopSection('reports')
+  @PlanFeature('advancedReports')
   @Get('analytics/visitors')
   visitors(
     @Tenant() ctx: TenantContext,

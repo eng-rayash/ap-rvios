@@ -60,8 +60,9 @@ export class CreateStoreDto {
    * طلب بباقة مدفوعة: المتجر يُحجز بانتظار تفعيل الفريق، ومعه فاتورتا الباقة والقالب.
    * بلا `plan` يُنشأ متجرًا مجانيًا يعمل فورًا.
    */
-  @IsOptional() @IsIn(['plus', 'pro']) plan?: 'plus' | 'pro';
-  @IsOptional() @IsIn([1, 12]) months?: 1 | 12;
+  @IsOptional() @IsIn(['plus', 'pro', 'max']) plan?: 'plus' | 'pro' | 'max';
+  /** من فترات إعداد الباقات (٣ / ٦ / ١٢…) */
+  @IsOptional() @IsInt() @Min(1) @Max(24) months?: number;
   @IsOptional() @IsString() @MaxLength(20) template?: string;
 
   @IsOptional()
@@ -96,6 +97,10 @@ export class UpdateStoreDto {
   @IsOptional() @IsInt() @Min(0) deliveryFreeOver?: number;
   /** برنامج المكافآت: ٪ من الطلب المكتمل (0 يوقفه) */
   @IsOptional() @IsInt() @Min(0) @Max(30) loyaltyRate?: number;
+  /** وضع الجملة: بلا أسعار في المتجر (ميزة باقة) */
+  @IsOptional() @IsBoolean() wholesale?: boolean;
+  /** المساعد الذكي للمتسوّقين (ميزة باقة) */
+  @IsOptional() @IsBoolean() aiAssistant?: boolean;
   @IsOptional() @IsString() @MaxLength(200) deliveryNote?: string;
 
   @IsOptional()

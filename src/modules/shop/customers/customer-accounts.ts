@@ -29,6 +29,8 @@ import { ShopPublicService } from '../public/public.service';
 import { PublicRateLimit } from '../public/rate-limit';
 import { ShopStoreAccessService } from '../shop-store-access.service';
 import { ORDER_LABEL, OrderStatus, toE164 } from '../shop.constants';
+import { PlanFeature } from '../plan-feature.guard';
+import { hasFeature } from '../../shop-billing/plans';
 
 type Tx = Prisma.TransactionClient;
 type Db = Pick<Tx, 'shopNotice' | 'shopWalletTx'>;
@@ -336,8 +338,9 @@ export class CustomerAccountController {
 
   @Post('otp')
   async otp(@Param('slug') slug: string, @Body() dto: OtpRequestDto, @Ip() ip: string) {
-    const { store } = await this.publicShop.live(slug);
+    const { store, plan } = await this.publicShop.live(slug);
     await this.publicShop.assertNotDemo(store);
+    if (!hasFeature(plan, 'customerAccounts')) throw new NotFoundException('حسابات العملاء غير مفعّلة في هذا المتجر');
     this.limit.check(`otp:${ip}`, 10, 60 * MIN);
     return this.auth.requestOtp(store, dto.phone);
   }
@@ -418,6 +421,7 @@ export class CustomerWalletController {
   ) {}
 
   @ShopSection('customers')
+  @PlanFeature('customerAccounts')
   @Get('customers/:customerId/wallet')
   view(@Tenant() ctx: TenantContext, @Param('storeId', ParseUUIDPipe) storeId: string, @Param('customerId', ParseUUIDPipe) customerId: string) {
     return this.wallet.merchantView(ctx, storeId, customerId);
@@ -425,12 +429,14 @@ export class CustomerWalletController {
 
   @RequireRole(UserRole.DeptManager)
   @ShopSection('customers')
+  @PlanFeature('customerAccounts')
   @Post('customers/:customerId/wallet')
   adjust(@Tenant() ctx: TenantContext, @Param('storeId', ParseUUIDPipe) storeId: string, @Param('customerId', ParseUUIDPipe) customerId: string, @Body() dto: WalletAdjustDto) {
     return this.wallet.adjust(ctx, storeId, customerId, dto);
   }
 
   @ShopSection('marketing')
+  @PlanFeature('broadcasts')
   @Get('broadcasts')
   broadcasts(@Tenant() ctx: TenantContext, @Param('storeId', ParseUUIDPipe) storeId: string, @Query('_') _?: string) {
     return this.notices.broadcasts(ctx, storeId);
@@ -438,6 +444,7 @@ export class CustomerWalletController {
 
   @RequireRole(UserRole.DeptManager)
   @ShopSection('marketing')
+  @PlanFeature('broadcasts')
   @Post('broadcasts')
   broadcast(@Tenant() ctx: TenantContext, @Param('storeId', ParseUUIDPipe) storeId: string, @Body() dto: BroadcastDto) {
     return this.notices.broadcast(ctx, storeId, dto);

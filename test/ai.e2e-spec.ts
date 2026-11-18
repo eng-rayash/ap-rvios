@@ -7,6 +7,7 @@ import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { DomainErrorFilter } from '../src/common/errors/domain-error.filter';
 import { TenantPrismaService } from '../src/common/prisma/tenant-prisma.service';
+import { upgradeStore } from './helpers/plan';
 import { AI_PROVIDER, AiChunk, AiProvider, AiProviderError, AiRequest } from '../src/modules/ai/providers/ai-provider';
 
 /**
@@ -72,7 +73,7 @@ describe('RVIOS AI', () => {
     });
 
   beforeAll(async () => {
-    process.env.AI_LIMIT_BASIC = '10';
+    process.env.AI_LIMIT_PLUS = '10';
     process.env.AI_PER_MINUTE = '100';
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(AI_PROVIDER).useValue(fake).compile();
     app = moduleRef.createNestApplication();
@@ -90,11 +91,14 @@ describe('RVIOS AI', () => {
     storeA = sa.body.store.id;
     const sb = await request(http).post('/api/v1/shop/stores').set(auth(b.token)).send({ name: 'متجر بيتا', slug: `ai-b-${RUN}`, country: 'SA', whatsapp: '512345678' }).expect(201);
     storeB = sb.body.store.id;
+    // RVIOS AI للتاجر ميزة باقة «النمو» فما فوق
+    await upgradeStore(prisma, a.companyId, storeA, 1);
+    await upgradeStore(prisma, b.companyId, storeB, 1);
     await request(http).post(`/api/v1/shop/stores/${storeA}/products`).set(auth(a.token)).send({ name: 'دهن عود كمبودي', price: 45000, qty: 3 }).expect(201);
   });
 
   afterAll(async () => {
-    delete process.env.AI_LIMIT_BASIC;
+    delete process.env.AI_LIMIT_PLUS;
     delete process.env.AI_PER_MINUTE;
     for (const u of [a, b]) {
       if (u.companyId) await prisma.organization.delete({ where: { id: u.companyId } }).catch(() => undefined);
@@ -105,7 +109,7 @@ describe('RVIOS AI', () => {
 
   it('الحالة: جاهز، والحصّة حسب باقة المتجر', async () => {
     const r = await request(http).get(`/api/v1/shop/stores/${storeA}/ai/status`).set(auth(a.token)).expect(200);
-    expect(r.body).toMatchObject({ ready: true, plan: 'basic', used: 0, limit: 10 });
+    expect(r.body).toMatchObject({ ready: true, plan: 'plus', used: 0, limit: 10 });
   });
 
   it('محادثة جديدة: بثّ، وحفظ، وعنوان تلقائي، وبيانات المتجر في التعليمات', async () => {

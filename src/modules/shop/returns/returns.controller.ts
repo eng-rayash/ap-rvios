@@ -5,9 +5,11 @@ import { TenantContext, UserRole } from '../../../common/tenant/tenant-context';
 import { CreateReturnDto, UpdateReturnDto } from './returns.dto';
 import { ShopReturnsService } from './returns.service';
 import { ShopSection } from '../../../common/tenant/shop-sections';
+import { PlanFeature } from '../plan-feature.guard';
 
 /** المرتجعات — لوحة التاجر */
 @ShopSection('orders')
+@PlanFeature('returns')
 @Controller('shop/stores/:storeId/returns')
 export class ShopReturnsController {
   constructor(private readonly returns: ShopReturnsService) {}

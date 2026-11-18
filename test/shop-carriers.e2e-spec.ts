@@ -7,6 +7,7 @@ import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { DomainErrorFilter } from '../src/common/errors/domain-error.filter';
 import { TenantPrismaService } from '../src/common/prisma/tenant-prisma.service';
+import { upgradeStore } from './helpers/plan';
 import { trackLink } from '../src/modules/shop/carriers/carriers';
 
 /** شركات الشحن: رقم الشحنة ورابط تتبّعه يظهران للعميل بعد الشحن، ويبقيان لو حُذفت الشركة. */
@@ -38,6 +39,8 @@ describe('شركات الشحن ورقم التتبّع', () => {
     }
     slug = `car-${randomUUID().slice(0, 8)}`;
     storeId = (await request(http).post('/api/v1/shop/stores').set(auth()).send({ name: 'متجر الشحن', slug, country: 'YE', whatsapp: '777123456' }).expect(201)).body.store.id;
+    // الوحدات المختبرة مقفلة على المجانية — المتجر على «الأعمال»
+    await upgradeStore(prisma, u.companyId, storeId);
     productId = (await request(http).post(`${base()}/products`).set(auth()).send({ name: 'حقيبة', price: 5000, qty: 9, live: true }).expect(201)).body.id;
   });
 

@@ -7,6 +7,7 @@ import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { DomainErrorFilter } from '../src/common/errors/domain-error.filter';
 import { TenantPrismaService } from '../src/common/prisma/tenant-prisma.service';
+import { upgradeStore } from './helpers/plan';
 
 /**
  * مراحل الطلب: مؤكد ← قيد التجهيز ← تم الشحن ← مكتمل (المراحل الوسطى اختيارية)،
@@ -52,6 +53,8 @@ describe('مراحل الطلب', () => {
     slug = `stages-${RUN}`;
     const s = await request(http).post('/api/v1/shop/stores').set(auth()).send({ name: 'متجر المراحل', slug, country: 'YE', whatsapp: '777123456' }).expect(201);
     storeId = s.body.store.id;
+    // الوحدات المختبرة مقفلة على المجانية — المتجر على «الأعمال»
+    await upgradeStore(prisma, u.companyId, storeId);
     const p = await request(http).post(`/api/v1/shop/stores/${storeId}/products`).set(auth()).send({ name: 'عطر', price: 10000, qty: 50, live: true }).expect(201);
     productId = p.body.id;
   });

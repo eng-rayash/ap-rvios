@@ -7,6 +7,7 @@ import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { DomainErrorFilter } from '../src/common/errors/domain-error.filter';
 import { TenantPrismaService } from '../src/common/prisma/tenant-prisma.service';
+import { upgradeStore } from './helpers/plan';
 import { CustomerMessenger } from '../src/modules/shop/customers/customer-accounts';
 
 /** حسابات العملاء: الدخول برمز الجوال، والمحفظة والمكافآت في الطلب، والإلغاء والمرتجع يعيدانها، والإشعارات. */
@@ -48,6 +49,8 @@ describe('حسابات العملاء ومحافظهم وإشعاراتهم', ()
     slug = `acc-${randomUUID().slice(0, 8)}`;
     slug2 = `acc2-${randomUUID().slice(0, 8)}`;
     storeId = (await request(http).post('/api/v1/shop/stores').set(auth()).send({ name: 'متجر الحسابات', slug, country: 'YE', whatsapp: '777123456' }).expect(201)).body.store.id;
+    // الوحدات المختبرة مقفلة على المجانية — المتجر على «الأعمال»
+    await upgradeStore(prisma, u.companyId, storeId);
     await request(http).post('/api/v1/shop/stores').set(auth(other.token)).send({ name: 'متجر آخر', slug: slug2, country: 'YE', whatsapp: '777123457' }).expect(201);
     productId = (await request(http).post(`${base()}/products`).set(auth()).send({ name: 'ساعة', price: 10000, qty: 50, live: true }).expect(201)).body.id;
   });

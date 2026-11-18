@@ -37,7 +37,7 @@ export class CreateShopInvoiceDto {
   template?: string;
 
   @IsOptional()
-  @IsIn(['plus', 'pro'])
+  @IsIn(['plus', 'pro', 'max'])
   plan?: string;
 
   @IsOptional()
@@ -65,7 +65,7 @@ export class UpdateStoreSubscriptionDto {
 
   @IsOptional()
   @IsInt()
-  @IsIn([0, 1, 2])
+  @IsIn([0, 1, 2, 3])
   plan?: number;
 
   @IsOptional()

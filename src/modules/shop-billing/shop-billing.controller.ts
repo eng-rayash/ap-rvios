@@ -23,6 +23,7 @@ import { STORE_TEMPLATES } from '../shop/store-templates';
 import { PlatformSettingsService } from './platform-settings.service';
 import { ShopInvoicesService } from './shop-invoices.service';
 import { StoreSubscriptionsService } from './store-subscriptions.service';
+import { plansConfig } from './plans';
 
 function assertStoreRef(ref: string): string {
   if (!STORE_REF.test(ref)) throw new BadRequestException('معرّف متجر غير صالح');
@@ -44,27 +45,16 @@ export class ShopBillingController {
   ) {}
 
   /**
-   * الأسعار المعلنة فقط — عامة عمدًا لصفحة الباقات التي يراها الزائر.
-   * وسائل الدفع (أرقام حسابات) تبقى خلف الجلسة في `billing/pricing`.
+   * أسعار القوالب والخدمات الإضافية فقط — أسعار الاشتراكات لا تُعلن للعموم: يراها
+   * التاجر داخل لوحته (`billing/plans`)، والموقع للتسويق وحده.
    */
   @Public()
   @Get('public/pricing')
   async publicPricing() {
-    const prices = await this.settings.planPrices();
-    const yearlyMonthsFree = await this.settings.yearlyMonthsFree();
-    const year = (m: number | null) => (m ? m * (12 - yearlyMonthsFree) : null);
     const templates = await this.settings.templatePrices();
     return {
-      prices,
       addons: await this.settings.addonPrices(),
-      yearlyMonthsFree,
       currency: await this.settings.currency(),
-      // بأسماء منصة المتاجر الجديدة: احترافي = بلس، أعمال = برو
-      plans: {
-        free: { month: 0, year: 0 },
-        pro: { month: prices.plus, year: year(prices.plus) },
-        biz: { month: prices.pro, year: year(prices.pro) },
-      },
       templates: Object.entries(STORE_TEMPLATES).map(([id, t]) => ({ id, tier: t.tier, price: t.tier === 'free' ? 0 : templates[id] })),
     };
   }
@@ -85,6 +75,8 @@ export class ShopBillingController {
     // المعلن نفسه + وسائل الدفع (أرقام الحسابات) لمن دخل فقط
     return {
       ...(await this.publicPricing()),
+      // الباقات الأربع بأسعارها لكل فترة — داخل اللوحة فقط
+      plans: plansConfig(),
       methods: await this.settings.paymentMethods(),
       accounts: await this.settings.payAccounts(),
     };

@@ -5,6 +5,7 @@ import { TenantContext } from '../../common/tenant/tenant-context';
 import { PublicRateLimit } from '../shop/public/rate-limit';
 import { AiFeature, aiConfig } from './ai.config';
 import { AiUsageInfo } from './providers/ai-provider';
+import { hasFeature } from '../shop-billing/plans';
 
 /** أول لحظة من الشهر الحالي بتوقيت UTC — الحصّة تتجدد مع كل شهر ميلادي */
 export function monthStart(now = new Date()): Date {
@@ -27,7 +28,9 @@ export class AiUsageService {
 
   limitFor(plan: string): number {
     const cfg = aiConfig();
-    return cfg.monthlyLimit[plan] ?? cfg.monthlyLimit.basic;
+    // الباقة بلا الميزة: صفر يعطّلها؛ والأعمال بحصة الاحترافية ما لم تُضبط
+    if (!hasFeature(plan, 'merchantAI')) return 0;
+    return cfg.monthlyLimit[plan] ?? (plan === 'max' ? cfg.monthlyLimit.pro : undefined) ?? cfg.monthlyLimit.basic;
   }
 
   async used(ctx: TenantContext, storeId: string): Promise<number> {

@@ -920,6 +920,10 @@ model ShopStore {
   deliveryFreeOver Int    @default(0) @map("delivery_free_over")
   /// برنامج المكافآت: نسبة مئوية من إجمالي الطلب المكتمل تُضاف لرصيد العميل (0 = متوقف)
   loyaltyRate      Int     @default(0) @map("loyalty_rate")
+  /// وضع الجملة: المنتجات بلا أسعار، والعميل يطلب الكميات ويتواصل معه المتجر (ميزة باقة)
+  wholesale        Boolean @default(false)
+  /// المساعد الذكي للمتسوّقين في واجهة المتجر (ميزة باقة)
+  aiAssistant      Boolean @default(false) @map("ai_assistant")
   deliveryNote     String @default("") @map("delivery_note")
   /// قائمة مفصولة بفواصل: cod,wallet,bank — والـcod لا تُنزع
   payMethods       String @default("cod") @map("pay_methods")

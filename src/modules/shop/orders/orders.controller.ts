@@ -16,6 +16,7 @@ import { AdvanceOrderDto, ManualOrderDto, OrderPaymentDto, ZoneDto } from './ord
 import { OrdersService } from './orders.service';
 import { ZonesService } from './zones.service';
 import { ShopSection, hideCost } from '../../../common/tenant/shop-sections';
+import { PlanFeature } from '../plan-feature.guard';
 
 function statusOf(status?: string) {
   const s = status !== undefined && status !== '' ? Number(status) : undefined;
@@ -73,6 +74,7 @@ export class OrdersController {
   /** طلب يدوي (هاتف، واتساب، المحل) — يحجز المخزون ويحسب القسيمة كطلب المتجر */
   @RequireRole(UserRole.Employee)
   @ShopSection('orders')
+  @PlanFeature('manualOrders')
   @Post('orders')
   createManual(
     @Tenant() ctx: TenantContext,

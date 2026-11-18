@@ -20,11 +20,13 @@ import {
   MAX_STORE_SLOTS,
   MS_DAY,
   PLAN_BY_CODE,
+  PLAN_CODE,
   ShopPlan,
 } from './shop-billing.constants';
 import { StoreSubscriptionsService } from './store-subscriptions.service';
 import { PlatformAlerts } from '../notify/platform-alerts.service';
 import { STORE_TEMPLATES, grantTemplate, isTemplate, templateCost } from '../shop/store-templates';
+import { PlanCode, plansConfig } from './plans';
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -71,6 +73,7 @@ export class ShopInvoicesService {
     const months = input.months ?? 1;
 
     let amount: number;
+    let currency = await this.settings.currency();
     let plan: ShopPlan | null = null;
     let item: string | null = null;
 
@@ -108,21 +111,22 @@ export class ShopInvoicesService {
       if (plan === null || plan === ShopPlan.Basic) {
         throw new BadRequestException('باقة غير صالحة للفوترة');
       }
-      const prices = await this.settings.planPrices();
-      const monthly = plan === ShopPlan.Plus ? prices.plus : prices.pro;
-      if (!monthly) {
+      // السعر لفترة بعينها من إعداد الباقات (٣ / ٦ / ١٢ شهرًا…) — لا ضرب شهري
+      const cfg = plansConfig();
+      const price = cfg.plans[PLAN_CODE[plan] as PlanCode]?.prices[months];
+      if (!cfg.periods.includes(months) || !price) {
         throw new ConflictException({
-          message: 'سعر هذه الباقة لم يُعلن بعد — تواصل معنا لإتمام الترقية',
+          message: `لا سعر لهذه الباقة لمدة ${months} أشهر — الفترات المتاحة: ${cfg.periods.join('، ')} أشهر`,
           code: 'PRICE_UNSET',
         });
       }
-      const free = months >= 12 ? await this.settings.yearlyMonthsFree() : 0;
-      amount = monthly * (months - free);
+      amount = price;
+      currency = cfg.currency;
     } else {
       if (kind === InvoiceKind.ExtraStore) {
         // المتجر الإضافي حكر على برو — الباقة تفتح الإمكانية ولا تهدي متجرًا
         const sub = await this.subs.ensure(ctx.companyId, storeRef);
-        if (this.subs.effectivePlan(sub) !== ShopPlan.Pro) {
+        if (this.subs.effectivePlan(sub) < ShopPlan.Pro) {
           throw new ConflictException({
             message: 'المتاجر الإضافية متاحة في باقة برو — رقِّ باقتك أولاً',
             code: 'PRO_REQUIRED',
@@ -215,7 +219,7 @@ export class ShopInvoicesService {
             syncId: randomUUID(),
             invoiceNumber,
             amount,
-            currency: await this.settings.currency(),
+            currency,
             periodStart: ymd(today),
             periodEnd: ymd(end),
             status: InvoiceStatus.Unpaid,

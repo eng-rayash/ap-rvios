@@ -33,10 +33,11 @@ import {
 } from '../shop.constants';
 import { slugProblem, slugify } from '../slug.util';
 import { CreateStoreDto, UpdateStoreDto } from './stores.dto';
+import { featuresOf, hasFeature, minPlanFor, planOf } from '../../shop-billing/plans';
 
 /** شكل المتجر كما تراه لوحة التاجر — العملة مشتقّة والسكِن فعّال لا محفوظ. */
 export function storeView(store: ShopStore, plan: string) {
-  const extra = plan === 'pro';
+  const extra = plan === 'pro' || plan === 'max';
   return {
     id: store.id,
     slug: store.slug,
@@ -66,7 +67,11 @@ export function storeView(store: ShopStore, plan: string) {
     savedTemplate: store.template,
     ownedTemplates: store.ownedTemplates,
     // النطاق الخاص للباقات المدفوعة — يُحفظ لو هبطت الباقة ويعود بعودتها
-    customDomain: plan === 'basic' ? null : store.customDomain,
+    customDomain: hasFeature(plan, 'customDomain') ? store.customDomain : null,
+    // الباقة ومزاياها وحدودها — اللوحة تقفل ما ليس في الباقة وتعرض «رقِّ باقتك»
+    planName: planOf(plan).name,
+    features: featuresOf(plan),
+    limits: planOf(plan).limits,
     savedCustomDomain: store.customDomain,
     plan,
     verified: store.verified,
@@ -76,6 +81,8 @@ export function storeView(store: ShopStore, plan: string) {
     deliveryFee: store.deliveryFee,
     deliveryFreeOver: store.deliveryFreeOver,
     loyaltyRate: store.loyaltyRate,
+    wholesale: store.wholesale,
+    aiAssistant: store.aiAssistant,
     deliveryNote: store.deliveryNote,
     payMethods: store.payMethods,
     payNote: store.payNote,
@@ -239,7 +246,7 @@ export class StoresService {
     let best: { id: string; rank: number } | null = null;
     for (const o of others) {
       const plan = await this.access.planOf(companyId, o.id);
-      const rank = plan === 'pro' ? 2 : plan === 'plus' ? 1 : 0;
+      const rank = ({ plus: 1, pro: 2, max: 3 } as Record<string, number>)[plan] ?? 0;
       if (rank > 0 && (!best || rank > best.rank)) best = { id: o.id, rank };
     }
     if (best) await this.subs.inherit(companyId, storeId, best.id);
@@ -289,8 +296,8 @@ export class StoresService {
       if (!domain) {
         data.customDomain = null;
       } else {
-        if (plan === 'basic') {
-          throw new ConflictException({ message: 'النطاق الخاص للباقات المدفوعة — رقِّ باقتك أولاً', code: 'PLAN_REQUIRED' });
+        if (!hasFeature(plan, 'customDomain')) {
+          throw new ConflictException({ message: 'النطاق الخاص غير متاح في باقتك — رقِّ باقتك أولاً', code: 'PLAN_FEATURE', feature: 'customDomain' });
         }
         const problem = domainProblem(domain);
         if (problem) throw new BadRequestException(problem);
@@ -313,6 +320,14 @@ export class StoresService {
     if (dto.deliveryFee !== undefined) data.deliveryFee = dto.deliveryFee;
     if (dto.deliveryFreeOver !== undefined) data.deliveryFreeOver = dto.deliveryFreeOver;
     if (dto.loyaltyRate !== undefined) data.loyaltyRate = dto.loyaltyRate;
+    // ميزتا باقة: التفعيل يُرفض برسالة واضحة، والإيقاف متاح دائمًا
+    for (const [k, f] of [['wholesale', 'wholesale'], ['aiAssistant', 'storeAI']] as const) {
+      if (dto[k] === undefined) continue;
+      if (dto[k] && !hasFeature(plan, f)) {
+        throw new ConflictException({ message: `هذه الميزة متاحة من باقة ${planOf(minPlanFor(f) ?? 'max').name} — رقِّ باقتك أولاً`, code: 'PLAN_FEATURE', feature: f });
+      }
+      data[k] = dto[k];
+    }
     if (dto.deliveryNote !== undefined) data.deliveryNote = dto.deliveryNote.trim();
     if (dto.payNote !== undefined) data.payNote = dto.payNote.trim();
     if (dto.payMethods !== undefined) {

@@ -7,6 +7,7 @@ import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { DomainErrorFilter } from '../src/common/errors/domain-error.filter';
 import { TenantPrismaService } from '../src/common/prisma/tenant-prisma.service';
+import { upgradeStore } from './helpers/plan';
 
 /** صلاحيات الموظفين بالأقسام: الخادم يمنع ما لم يُمنح، ويخفي التكلفة عمّن لا يرى الأرباح. */
 describe('أقسام المتجر للموظفين', () => {
@@ -40,6 +41,8 @@ describe('أقسام المتجر للموظفين', () => {
     owner.companyId = r.body.company.id;
     const s = await request(http).post('/api/v1/shop/stores').set(auth(owner.token)).send({ name: 'متجر الأقسام', slug: `sec-${RUN}`, country: 'YE', whatsapp: '777123456' }).expect(201);
     storeId = s.body.store.id;
+    // الوحدات المختبرة مقفلة على المجانية — المتجر على «الأعمال»
+    await upgradeStore(prisma, owner.companyId, storeId);
     const p = await request(http).post(`/api/v1/shop/stores/${storeId}/products`).set(auth(owner.token)).send({ name: 'ساعة', price: 10000, costPrice: 4000, qty: 5, live: true }).expect(201);
     productId = p.body.id;
     const m = await request(http).post('/api/v1/team/members').set(auth(owner.token))

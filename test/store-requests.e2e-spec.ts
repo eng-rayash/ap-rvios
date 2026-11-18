@@ -26,7 +26,7 @@ describe('طلبات المتاجر وإدارة المنصة', () => {
   const support = mk('req-support');
   const purged: string[] = [];
   const realFetch = global.fetch;
-  const KEYS = ['price.plus', 'price.pro'];
+  const KEYS = ['price.plus', 'price.pro', 'plans.config'];
   let saved: Array<{ key: string; value: unknown }> = [];
 
   async function register(u: ReturnType<typeof mk>) {
@@ -63,7 +63,7 @@ describe('طلبات المتاجر وإدارة المنصة', () => {
     for (const u of [merchant, admin, support]) await register(u);
     await prisma.user.update({ where: { id: admin.userId }, data: { isPlatformStaff: true, platformRole: 2 } });
     await prisma.user.update({ where: { id: support.userId }, data: { isPlatformStaff: true, platformRole: 0 } });
-    await request(http).patch('/api/v1/platform/settings').set(auth(admin.token)).send({ values: { 'price.plus': 6, 'price.pro': 15 } }).expect(200);
+    await request(http).put('/api/v1/platform/plans').set(auth(admin.token)).send({ plans: { plus: { prices: { 3: 6, 6: 11, 12: 20 } }, pro: { prices: { 3: 15, 6: 27, 12: 50 } } } }).expect(200);
     // متجر أول مجاني، فالطلب التالي يحتاج خانة — والاختبار يشتريها بلا دفع
     await prisma.organization.update({ where: { id: merchant.companyId }, data: { storeSlots: 4 } });
   });
@@ -85,7 +85,7 @@ describe('طلبات المتاجر وإدارة المنصة', () => {
     const free = await newStore({}).expect(201);
     expect(free.body.store.status).toBe(0);
 
-    const r = await newStore({ plan: 'plus', months: 1, template: 'noir' }).expect(201);
+    const r = await newStore({ plan: 'plus', months: 3, template: 'noir' }).expect(201);
     expect(r.body.store.status).toBe(2);
     expect(r.body.store.plan).toBe('basic');
     await request(http).get(`/api/v1/shop/storefront/${r.body.store.slug}/catalogue`).expect(404);
@@ -115,7 +115,7 @@ describe('طلبات المتاجر وإدارة المنصة', () => {
   });
 
   it('الرفض يحذف الطلب ويحرر رابطه ويترك الفواتير مرفوضة للسجل', async () => {
-    const r = await newStore({ plan: 'pro', months: 1 }).expect(201);
+    const r = await newStore({ plan: 'pro', months: 3 }).expect(201);
     const { id, slug } = r.body.store;
     await request(http).post(`/api/v1/platform/shop-stores/${id}/reject`).set(auth(admin.token)).send({ reason: 'لم يُستكمل الدفع' }).expect(201);
     expect(await prisma.shopStore.findUnique({ where: { id } })).toBeNull();

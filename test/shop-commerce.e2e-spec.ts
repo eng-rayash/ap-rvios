@@ -8,6 +8,10 @@ import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { DomainErrorFilter } from '../src/common/errors/domain-error.filter';
 import { TenantPrismaService } from '../src/common/prisma/tenant-prisma.service';
+import { upgradeStore } from './helpers/plan';
+import { DEFAULT_PLANS } from '../src/modules/shop-billing/plans';
+const FREE = DEFAULT_PLANS.plans.basic.limits;
+
 
 /**
  * AZM — تجارة المتاجر: من إنشاء المتجر إلى الطلب والتحليلات
@@ -149,10 +153,11 @@ describe('تجارة المتاجر', () => {
     it('منتج بلا خيارات: المعرض يُقصّ إلى حدّ الباقة والغلاف أول صورة', async () => {
       const r = await post(`/shop/stores/${storeId}/products`, a.token, {
         name: 'عود ملكي', price: 25000, qty: 10, live: true,
-        images: ['https://cdn.test/a.jpg', 'https://cdn.test/b.jpg'],
+        images: ['https://cdn.test/a.jpg', 'https://cdn.test/b.jpg', 'https://cdn.test/c.jpg'],
       }).expect(201);
       productId = r.body.id;
-      expect(r.body.images).toEqual(['https://cdn.test/a.jpg']); // مجانية = صورة واحدة
+      // المعرض يُقصّ إلى حدّ المجانية
+      expect(r.body.images).toEqual(['https://cdn.test/a.jpg', 'https://cdn.test/b.jpg', 'https://cdn.test/c.jpg'].slice(0, FREE.imagesPerProduct));
       expect(r.body.image).toBe('https://cdn.test/a.jpg');
     });
 
@@ -174,8 +179,8 @@ describe('تجارة المتاجر', () => {
     });
 
     it('الحدّ ١٠ منتجات للمجانية يُفرض في الخادم', async () => {
-      // يوجد منتجان؛ نكمل إلى ١٠
-      for (let i = 0; i < 8; i++) {
+      // يوجد منتجان؛ نكمل إلى حدّ المجانية
+      for (let i = 0; i < FREE.products! - 2; i++) {
         await post(`/shop/stores/${storeId}/products`, a.token, {
           name: `منتج ${i}`, price: 1000, qty: 1,
         }).expect(201);
@@ -193,7 +198,7 @@ describe('تجارة المتاجر', () => {
       expect(r.body.store.slug).toBe(slug);
       expect(r.body.store.companyId).toBeUndefined();
       expect(r.body.products).toHaveLength(4);
-      expect(r.body.total).toBe(10);
+      expect(r.body.total).toBe(FREE.products);
       expect(r.body.hasMore).toBe(true);
       expect(JSON.stringify(r.body)).not.toContain(a.companyId);
     });
@@ -356,6 +361,8 @@ describe('تجارة المتاجر', () => {
     });
 
     it('الدفع بالتحويل: يبدأ بانتظار، ثم إيصال، ثم يؤكّده التاجر', async () => {
+      // الدفع الإلكتروني ميزة «النمو» فما فوق — والمجانية تُعاد بعده
+      await upgradeStore(prisma, a.companyId, storeId, 1);
       await request(http)
         .patch(`/api/v1/shop/stores/${storeId}`)
         .set(auth(a.token))
@@ -398,6 +405,7 @@ describe('تجارة المتاجر', () => {
         .patch(`/api/v1/shop/stores/${storeId}/orders/${o.id}/payment`)
         .set(auth(a.token)).send({ paid: true }).expect(200);
       expect(paid.body.payStatus).toBe(3);
+      await upgradeStore(prisma, a.companyId, storeId, 0);
     });
 
     /** صورة PNG حقيقية — الإيصال يُعاد ترميزه فلا تكفي بصمة الملف */
@@ -452,7 +460,7 @@ describe('تجارة المتاجر', () => {
       const o = await get(`/shop/stores/${storeId}/overview`, a.token).expect(200);
       expect(o.body.kpis.pending).toBeGreaterThan(0);
       expect(o.body.chart).toHaveLength(7);
-      expect(o.body.capacity.max).toBe(10);
+      expect(o.body.capacity.max).toBe(FREE.products);
 
       const an = await get(`/shop/stores/${storeId}/analytics?days=30`, a.token).expect(200);
       expect(an.body.totals.orders).toBeGreaterThan(3);

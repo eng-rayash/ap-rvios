@@ -7,6 +7,7 @@ import { RequireRole, Tenant } from '../../../common/tenant/tenant.guard';
 import { TenantContext, UserRole } from '../../../common/tenant/tenant-context';
 import { ShopStoreAccessService } from '../shop-store-access.service';
 import { ShopSection } from '../../../common/tenant/shop-sections';
+import { PlanFeature } from '../plan-feature.guard';
 
 export class AdjustPointsDto {
   /** موجب يضيف، سالب يخصم (لا يتجاوز الرصيد) */
@@ -88,6 +89,7 @@ export class LoyaltyService {
 }
 
 @ShopSection('customers')
+@PlanFeature('loyalty')
 @Controller('shop/stores/:storeId/customers/:customerId/points')
 export class LoyaltyController {
   constructor(private readonly loyalty: LoyaltyService) {}

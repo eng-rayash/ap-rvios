@@ -32,7 +32,7 @@ describe('قوالب منصة المتاجر', () => {
   const m = mk('merchant');
   const staff = mk('staff');
   const auth = (t: string) => ({ Authorization: `Bearer ${t}` });
-  const KEYS = ['price.plus', 'price.pro', 'billing.currency', 'billing.yearlyMonthsFree', 'tpl.noir'];
+  const KEYS = ['price.plus', 'price.pro', 'plans.config', 'billing.currency', 'billing.yearlyMonthsFree', 'tpl.noir'];
   let saved: Array<{ key: string; value: unknown }> = [];
   let storeId = '';
   let slug = '';
@@ -70,8 +70,7 @@ describe('قوالب منصة المتاجر', () => {
     await register(m);
     await register(staff);
     await prisma.user.update({ where: { id: staff.userId }, data: { isPlatformStaff: true, platformRole: 2 } });
-    await request(http).patch('/api/v1/platform/settings').set(auth(staff.token))
-      .send({ values: { 'price.plus': 6, 'price.pro': 15 } }).expect(200);
+    await request(http).put('/api/v1/platform/plans').set(auth(staff.token)).send({ plans: { plus: { prices: { 3: 6, 6: 11, 12: 20 } }, pro: { prices: { 3: 15, 6: 27, 12: 50 } } } }).expect(200);
 
     slug = `tpl-${randomUUID().slice(0, 6)}`;
     const st = await request(http).post('/api/v1/shop/stores').set(auth(m.token))
@@ -89,11 +88,19 @@ describe('قوالب منصة المتاجر', () => {
     await app.close();
   });
 
-  it('الأسعار العامة: الباقات بأسماء المنصة الجديدة، والقوالب بأسعارها، بالدولار', async () => {
+  it('الأسعار العامة: القوالب بأسعارها بلا أي سعر اشتراك — الباقات داخل اللوحة وحدها', async () => {
     const r = await request(http).get('/api/v1/shop/public/pricing').expect(200);
     expect(r.body.currency).toBe('USD');
-    expect(r.body.plans.pro).toEqual({ month: 6, year: 60 }); // شهران مجانًا سنويًا
-    expect(r.body.plans.biz).toEqual({ month: 15, year: 150 });
+    expect(r.body.plans).toBeUndefined();
+    expect(JSON.stringify(r.body)).not.toContain('"prices"');
+    const inside = await request(http).get('/api/v1/billing/plans').set(auth(m.token)).expect(200);
+    expect(Object.keys(inside.body.plans)).toEqual(['basic', 'plus', 'pro', 'max']);
+    expect(inside.body.plans.plus.prices).toEqual({ 3: 6, 6: 11, 12: 20 });
+    expect(inside.body.features.storeAI.label).toBeTruthy();
+    // الخادم يقفل الوحدة خارج الباقة برمز تقرأه اللوحة
+    const locked = await request(http).get(`/api/v1/shop/stores/${storeId}/carts`).set(auth(m.token)).expect(403);
+    expect(locked.body.code ?? JSON.stringify(locked.body)).toContain('PLAN_FEATURE');
+    await request(http).get('/api/v1/platform/plans').set(auth(m.token)).expect(403);
     const noir = r.body.templates.find((t: { id: string }) => t.id === 'noir');
     expect(noir).toEqual({ id: 'noir', tier: 'signature', price: 49 });
     expect(r.body.templates.find((t: { id: string }) => t.id === 'essential').price).toBe(0);
@@ -217,7 +224,7 @@ describe('قوالب منصة المتاجر', () => {
     const ref = st.body.store.id;
     try {
       const plan = await request(http).post('/api/v1/shop/invoices').set(auth(o.token))
-        .send({ storeRef: ref, kind: 0, plan: 'plus', months: 1 }).expect(201);
+        .send({ storeRef: ref, kind: 0, plan: 'plus', months: 3 }).expect(201);
       const tpl = await request(http).post('/api/v1/shop/invoices').set(auth(o.token))
         .send({ storeRef: ref, kind: 4, template: 'noir' }).expect(201);
       expect(Number(tpl.body.amount)).toBe(50); // سعر الإدارة من الاختبار السابق، بلا خصم في الاحترافية

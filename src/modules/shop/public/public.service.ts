@@ -13,6 +13,7 @@ import { waAsk } from '../orders/order-message';
 import { PAY_METHODS, SOLD_STATUSES, StoreStatus, countryOf, limitsOf, symbolOf } from '../shop.constants';
 import { storeView } from '../stores/stores.service';
 import { DEMO_WORKSPACE_SLUG } from '../../demo/demo.constant';
+import { hasFeature } from '../../shop-billing/plans';
 
 /** نتيجة حلّ رابط: متجر حيّ، أو تحويل دائم إلى رابطه الجديد. */
 export type Resolved =
@@ -75,7 +76,7 @@ export class ShopPublicService {
     const store = domain ? await this.prisma.shopStore.findUnique({ where: { customDomain: domain } }) : null;
     if (!store || store.status !== StoreStatus.Active) throw new NotFoundException('لا متجر على هذا النطاق');
     const plan = await this.access.planOf(store.companyId, store.id);
-    if (plan === 'basic') throw new NotFoundException('لا متجر على هذا النطاق');
+    if (!hasFeature(plan, 'customDomain')) throw new NotFoundException('لا متجر على هذا النطاق');
     return { slug: store.slug };
   }
 
@@ -95,13 +96,19 @@ export class ShopPublicService {
       whatsapp: v.whatsapp, hours: v.hours, logo: v.logo, banner: v.banner,
       showcase: v.showcase, appearance: v.appearance, color: v.color, colorDeep: v.colorDeep,
       theme: v.theme, layout: v.layout, plan: v.plan, verified: v.verified,
-      accounts: (process.env.CUSTOMER_MSG_DRIVER || (process.env.NODE_ENV === 'production' ? 'none' : 'console')) !== 'none',
+      accounts: hasFeature(plan, 'customerAccounts') && (process.env.CUSTOMER_MSG_DRIVER || (process.env.NODE_ENV === 'production' ? 'none' : 'console')) !== 'none',
+      // شارة «أُنشئ بواسطة RVIOS» — تُخفى في الباقات التي تسمح
+      badge: !hasFeature(plan, 'removeBadge'),
+      wholesale: hasFeature(plan, 'wholesale') && store.wholesale,
+      storeAI: hasFeature(plan, 'storeAI') && store.aiAssistant,
       // منصة المتاجر الجديدة: القالب الفعّال، والباقة برموزها (free|pro|biz)
       template: v.template, planTier: PUBLIC_PLAN[PLAN_BY_CODE[v.plan] ?? 0], customDomain: v.customDomain,
       // `currency` رمز للعرض (ر.ي)، و`currencyCode` رمز ISO 4217 (YER) لبيانات البحث المنظّمة
       country: v.country, currency: v.currency, currencyCode: countryOf(v.country).currency,
       deliveryFee: v.deliveryFee, deliveryFreeOver: v.deliveryFreeOver,
-      deliveryNote: v.deliveryNote, payMethods: v.payMethods, payNote: v.payNote,
+      deliveryNote: v.deliveryNote,
+      // المجانية بالدفع عند الاستلام وحده
+      payMethods: hasFeature(plan, 'onlinePayments') ? v.payMethods : 'cod', payNote: v.payNote,
       url: `/${v.slug}`,
     };
   }

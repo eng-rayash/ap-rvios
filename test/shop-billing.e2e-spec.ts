@@ -41,6 +41,7 @@ describe('فوترة منصة المتاجر', () => {
   const TEST_KEYS = [
     'price.plus',
     'price.pro',
+    'plans.config',
     'price.store_build',
     'price.domain',
     'price.extra_store', 'billing.currency', 'app.minVersion', 'app.maintenance', 'app.maintenanceMessage', 'app.storeUrl'];
@@ -89,12 +90,14 @@ describe('فوترة منصة المتاجر', () => {
       where: { id: staff.userId },
       data: { isPlatformStaff: true, platformRole: 2 },
     });
-    // أسعار الاختبار — تُستعاد في afterAll
-    await request(http)
-      .patch('/api/v1/platform/settings')
+    // أسعار الاختبار لكل فترة (بالريال) — تُستعاد في afterAll
+    const plans = await request(http)
+      .put('/api/v1/platform/plans')
       .set(auth(staff.token))
-      .send({ values: { 'price.plus': 5000, 'price.pro': 15000 } })
+      .send({ plans: { plus: { prices: { 3: 5000, 6: 9000, 12: 15000 } }, pro: { prices: { 3: 15000, 6: 27000, 12: 48000 } } } })
       .expect(200);
+    expect(plans.body.plans.plus.prices).toEqual({ 3: 5000, 6: 9000, 12: 15000 });
+    expect(plans.body.periods).toEqual([3, 6, 12]);
   });
 
   afterAll(async () => {
@@ -126,7 +129,7 @@ describe('فوترة منصة المتاجر', () => {
   });
 
   it('فاتورة بلس تحسب من السعر المعلن، والتكرار يعيد الفاتورة نفسها', async () => {
-    const body = { storeRef: 'store-1', kind: 0, plan: 'plus', months: 1 };
+    const body = { storeRef: 'store-1', kind: 0, plan: 'plus', months: 3 };
     const r1 = await request(http)
       .post('/api/v1/shop/invoices')
       .set(auth(a.token))
@@ -135,7 +138,9 @@ describe('فوترة منصة المتاجر', () => {
     invoiceId = r1.body.id;
     expect(r1.body.invoiceNumber).toMatch(/^RV-INV-\d{6}$/);
     expect(Number(r1.body.amount)).toBe(5000);
-    expect(r1.body.currency).toBe('USD'); // عملة الفوترة الافتراضية
+    expect(r1.body.currency).toBe('YER'); // الباقات بالريال اليمني
+    // فترة ليست في إعداد الباقات تُرفض
+    await request(http).post('/api/v1/shop/invoices').set(auth(a.token)).send({ ...body, months: 1 }).expect(409);
 
     const r2 = await request(http)
       .post('/api/v1/shop/invoices')
@@ -145,14 +150,14 @@ describe('فوترة منصة المتاجر', () => {
     expect(r2.body.id).toBe(invoiceId);
   });
 
-  it('السنوي يخصم الشهور المجانية (12 شهرًا = 10 مدفوعة)', async () => {
+  it('لكل فترة سعرها في الباقة (السنة بسعرها لا ١٢ ضعفًا)', async () => {
     // استبدال الفاتورة المفتوحة بأخرى مختلفة
     const r = await request(http)
       .post('/api/v1/shop/invoices')
       .set(auth(a.token))
       .send({ storeRef: 'store-1', kind: 0, plan: 'plus', months: 12 })
       .expect(201);
-    expect(Number(r.body.amount)).toBe(50000);
+    expect(Number(r.body.amount)).toBe(15000);
     expect(r.body.id).not.toBe(invoiceId);
     invoiceId = r.body.id;
 
@@ -196,7 +201,7 @@ describe('فوترة منصة المتاجر', () => {
     const r = await request(http)
       .post('/api/v1/shop/invoices')
       .set(auth(a.token))
-      .send({ storeRef: 'store-1', kind: 0, plan: 'pro', months: 1 })
+      .send({ storeRef: 'store-1', kind: 0, plan: 'pro', months: 3 })
       .expect(409);
     expect(JSON.stringify(r.body)).toContain('INVOICE_PENDING');
   });
@@ -302,7 +307,7 @@ describe('فوترة منصة المتاجر', () => {
       const inv = await request(http)
         .post('/api/v1/shop/invoices')
         .set(auth(a.token))
-        .send({ storeRef: 'store-1', kind: 0, plan: 'pro', months: 1 })
+        .send({ storeRef: 'store-1', kind: 0, plan: 'pro', months: 3 })
         .expect(201);
       await request(http)
         .patch(`/api/v1/platform/invoices/${inv.body.id}/review`)

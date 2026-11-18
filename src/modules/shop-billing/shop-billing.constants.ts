@@ -13,21 +13,25 @@ export enum ShopPlan {
   Basic = 0,
   Plus = 1,
   Pro = 2,
+  /** الأعمال — الأعلى (أُضيفت ٢٠٢٦-١١: أربع باقات) */
+  Max = 3,
 }
 
 export const PLAN_BY_CODE: Record<string, ShopPlan> = {
   basic: ShopPlan.Basic,
   plus: ShopPlan.Plus,
   pro: ShopPlan.Pro,
+  max: ShopPlan.Max,
 };
 
-export const PLAN_CODE = ['basic', 'plus', 'pro'] as const;
+export const PLAN_CODE = ['basic', 'plus', 'pro', 'max'] as const;
 
 /** رموز الباقات كما تعرضها منصة المتاجر الجديدة (rvios-next) */
 export const PUBLIC_PLAN: Record<ShopPlan, 'free' | 'pro' | 'biz'> = {
   [ShopPlan.Basic]: 'free',
   [ShopPlan.Plus]: 'pro',
   [ShopPlan.Pro]: 'biz',
+  [ShopPlan.Max]: 'biz',
 };
 
 /** 0=نشط · 1=مهلة · 2=منتهٍ */

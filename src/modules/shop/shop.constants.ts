@@ -1,3 +1,4 @@
+import { planOf } from '../shop-billing/plans';
 /**
  * منصة المتاجر — الثوابت والمعرفة المشتركة.
  *
@@ -110,25 +111,19 @@ export interface PlanLimits {
   coupons: number | null;
 }
 
-export const PLAN_LIMITS: Record<string, PlanLimits> = {
-  // كما في صفحة أسعار منصة المتاجر: المجانية ١٠ منتجات، الاحترافية ٥٠٠، الأعمال بلا حد.
-  // القسائم في كل الباقات — حتى المجانية (٣ مفعّلة معًا): عند غيرنا هي ميزة مدفوعة
-  basic: { products: 10, imagesPerProduct: 1, variantsPerProduct: 5, subcategories: false, extraThemes: false, coupons: 3 },
-  plus: { products: 500, imagesPerProduct: 4, variantsPerProduct: 30, subcategories: true, extraThemes: false, coupons: null },
-  pro: { products: null, imagesPerProduct: 10, variantsPerProduct: null, subcategories: true, extraThemes: true, coupons: null },
-};
-
 /** أقصى عدد للقسائم المحفوظة في المتجر (مفعّلة وغير مفعّلة) */
 export const MAX_COUPONS = 200;
 
-export const PLAN_NAME: Record<string, string> = {
-  basic: 'المجانية',
-  plus: 'الاحترافية',
-  pro: 'الأعمال',
-};
+/**
+ * الحدود والأسماء من إعداد الباقات (`shop-billing/plans.ts`) — تعدّلها الإدارة من «الباقات».
+ * `PLAN_NAME.pro` و`PLAN_NAME[plan]` يقرآن الاسم الحالي لا اسمًا مكتوبًا هنا.
+ */
+export const PLAN_NAME: Record<string, string> = new Proxy({} as Record<string, string>, {
+  get: (_t, k) => (typeof k === 'string' ? planOf(k).name : undefined),
+});
 
 export function limitsOf(plan: string): PlanLimits {
-  return PLAN_LIMITS[plan] ?? PLAN_LIMITS.basic;
+  return planOf(plan).limits;
 }
 
 // ═══════════════════════════════════════════════════════════

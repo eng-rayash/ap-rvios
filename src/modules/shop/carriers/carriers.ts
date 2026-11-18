@@ -20,6 +20,7 @@ import { TenantContext, UserRole } from '../../../common/tenant/tenant-context';
 import { ShopStoreAccessService } from '../shop-store-access.service';
 import { OrderStatus } from '../shop.constants';
 import { StorefrontCache } from '../public/storefront-cache.service';
+import { PlanFeature } from '../plan-feature.guard';
 
 /** رابط تتبّع بصيغة https يحمل {n} مكان رقم الشحنة — مثل https://carrier.example/track?no={n} */
 const TRACK_URL = /^https:\/\/[^\s]+$/;
@@ -136,6 +137,7 @@ export class ShopCarriersService {
   }
 }
 
+@PlanFeature('carriers')
 @Controller('shop/stores/:storeId')
 export class ShopCarriersController {
   constructor(private readonly carriers: ShopCarriersService) {}

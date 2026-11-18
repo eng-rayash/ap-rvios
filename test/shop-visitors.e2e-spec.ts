@@ -7,6 +7,7 @@ import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { DomainErrorFilter } from '../src/common/errors/domain-error.filter';
 import { TenantPrismaService } from '../src/common/prisma/tenant-prisma.service';
+import { upgradeStore } from './helpers/plan';
 import { cleanPath, deviceOf, sourceOf } from '../src/modules/shop/analytics/visitor-stats';
 
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148';
@@ -41,6 +42,8 @@ describe('تقرير الزوار', () => {
     u.companyId = r.body.company.id;
     slug = `vis-${randomUUID().slice(0, 8)}`;
     storeId = (await request(http).post('/api/v1/shop/stores').set(auth()).send({ name: 'متجر الزوار', slug, country: 'YE', whatsapp: '777123456' }).expect(201)).body.store.id;
+    // الوحدات المختبرة مقفلة على المجانية — المتجر على «الأعمال»
+    await upgradeStore(prisma, u.companyId, storeId);
     productId = (await request(http).post(`/api/v1/shop/stores/${storeId}/products`).set(auth()).send({ name: 'عطر العود', price: 9000, qty: 3, live: true }).expect(201)).body.id;
   });
 

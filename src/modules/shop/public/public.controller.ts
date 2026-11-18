@@ -33,6 +33,7 @@ import { CustomerAuth } from '../customers/customer-accounts';
 import { ShopReturnsService } from '../returns/returns.service';
 import { ShopQuestionsService } from '../questions/questions.service';
 import { CouponsService } from '../coupons/coupons.service';
+import { hasFeature } from '../../shop-billing/plans';
 
 /**
  * واجهة المتجر العامة — كل المسارات `@Public()` عمدًا: الزائر القادم من رابط
@@ -153,9 +154,11 @@ export class ShopPublicController {
   /** حفظ السلة حين يكتب العميل جواله في صفحة الإتمام — لتذكيره إن لم يُكمل (بإشعار في الصفحة) */
   @Post(':slug/carts')
   async saveCart(@Param('slug') slug: string, @Body() dto: SaveCartDto, @Ip() ip: string) {
-    const { store } = await this.publicShop.live(slug);
+    const { store, plan } = await this.publicShop.live(slug);
     await this.publicShop.assertNotDemo(store);
     this.limit.check(`cart:${ip}:${store.id}`, 30, 10 * 60_000);
+    // الباقة بلا السلات المتروكة: لا يُحفظ شيء (والمتجر لا يعرف الفرق)
+    if (!hasFeature(plan, 'abandonedCarts')) return { ok: true };
     return this.carts.save(store, dto);
   }
 
@@ -167,8 +170,9 @@ export class ShopPublicController {
     @Ip() ip: string,
     @Headers('x-customer-token') customerToken?: string,
   ) {
-    const { store } = await this.publicShop.live(slug);
+    const { store, plan } = await this.publicShop.live(slug);
     await this.publicShop.assertNotDemo(store);
+    if (!hasFeature(plan, 'onlinePayments')) dto.payMethod = 'cod';
     // ١٠ طلبات كل ١٠ دقائق من عنوان واحد لكل متجر — يكفي عميلًا حقيقيًا ويقطع
     // سيلًا آليًا. قابل للضبط للاختبارات ولمتاجر خلف بوّابة مشتركة.
     this.limit.check(`order:${ip}:${store.id}`, Number(process.env.SHOP_ORDER_LIMIT) || 10, 10 * 60_000);

@@ -10,6 +10,7 @@ import { variantPrice } from '../catalog/catalog.service';
 import { ShopStoreAccessService } from '../shop-store-access.service';
 import { symbolOf, toE164 } from '../shop.constants';
 import { ShopSection } from '../../../common/tenant/shop-sections';
+import { PlanFeature } from '../plan-feature.guard';
 
 export class CartLineDto {
   @IsUUID() id!: string;
@@ -126,6 +127,7 @@ export class ShopCartsService {
 }
 
 @ShopSection('orders')
+@PlanFeature('abandonedCarts')
 @Controller('shop/stores/:storeId/carts')
 export class ShopCartsController {
   constructor(private readonly carts: ShopCartsService) {}

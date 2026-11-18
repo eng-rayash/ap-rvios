@@ -79,6 +79,9 @@ import { PlatformKycController, ShopKycController, ShopKycService } from './modu
 import { ShopCarriersController, ShopCarriersService } from './modules/shop/carriers/carriers';
 import { ShopReportsController, ShopReportsService } from './modules/shop/analytics/reports';
 import { PlatformSupportController, SupportController, SupportService } from './modules/support/support';
+import { PlanFeatureGuard } from './modules/shop/plan-feature.guard';
+import { PlansService } from './modules/shop-billing/plans';
+import { PlansController, PlatformPlansController } from './modules/shop-billing/plans.controller';
 import { CustomerAccountController, CustomerAuth, CustomerMessenger, CustomerNotices, CustomerWallet, CustomerWalletController } from './modules/shop/customers/customer-accounts';
 import { ShopReturnsService } from './modules/shop/returns/returns.service';
 import { OrdersService } from './modules/shop/orders/orders.service';
@@ -194,6 +197,8 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     ShopCarriersController,
     ShopReportsController,
     SupportController,
+    PlansController,
+    PlatformPlansController,
     PlatformSupportController,
     CustomerAccountController,
     CustomerWalletController,
@@ -275,6 +280,7 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     ShopCarriersService,
     ShopReportsService,
     SupportService,
+    PlansService,
     CustomerMessenger,
     CustomerAuth,
     CustomerNotices,
@@ -292,6 +298,8 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     SettingsService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: TenantGuard },
+    // مزايا الباقة بعد الهوية — يقرأ @PlanFeature
+    { provide: APP_GUARD, useClass: PlanFeatureGuard },
   ],
 })
 export class AppModule {}
