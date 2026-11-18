@@ -20,6 +20,7 @@ const OPEN = [InvoiceStatus.Unpaid, InvoiceStatus.UnderReview];
  */
 import { PlatformAlerts } from '../../notify/platform-alerts.service';
 import { plansConfig } from '../../shop-billing/plans';
+import { STORE_TEMPLATES } from '../store-templates';
 @Injectable()
 export class StoreRequestsService {
   constructor(
@@ -38,7 +39,7 @@ export class StoreRequestsService {
     const { store } = await this.stores.create(ctx, dto, { pending: true });
     try {
       await this.invoices.create(ctx, { storeRef: store.id, kind: InvoiceKind.Subscription, plan, months });
-      if (dto.template && dto.template !== 'essential') {
+      if (dto.template && STORE_TEMPLATES[dto.template]?.tier !== 'free') {
         try {
           await this.invoices.create(ctx, { storeRef: store.id, kind: InvoiceKind.Template, template: dto.template });
         } catch (e) {

@@ -104,7 +104,7 @@ describe('قوالب منصة المتاجر', () => {
     const noir = r.body.templates.find((t: { id: string }) => t.id === 'noir');
     expect(noir).toEqual({ id: 'noir', tier: 'signature', price: 49 });
     expect(r.body.templates.find((t: { id: string }) => t.id === 'essential').price).toBe(0);
-    expect(r.body.templates).toHaveLength(18);
+    expect(r.body.templates).toHaveLength(19);
   });
 
   it('فحص الرابط عام قبل إنشاء الحساب', async () => {
@@ -116,7 +116,7 @@ describe('قوالب منصة المتاجر', () => {
 
   it('المجانية: الأساسي وحده — لا اختيار ولا شراء لقالب مدفوع', async () => {
     const c = await request(http).get(`/api/v1/shop/storefront/${slug}/catalogue`).expect(200);
-    expect(c.body.store.template).toBe('essential');
+    expect(c.body.store.template).toBe('rvios');
     expect(c.body.store.planTier).toBe('free');
     const p = await request(http).patch(`/api/v1/shop/stores/${storeId}`).set(auth(m.token)).send({ template: 'noir' }).expect(409);
     expect(JSON.stringify(p.body)).toContain('PLAN_REQUIRED');
@@ -161,7 +161,7 @@ describe('قوالب منصة المتاجر', () => {
       .send({ decision: 'rejected', reason: 'إيصال غير مطابق' }).expect(200);
     const s = await request(http).get(`/api/v1/shop/stores/${storeId}`).set(auth(m.token)).expect(200);
     expect(s.body.store.ownedTemplates).not.toContain('noir');
-    expect(s.body.store.template).toBe('essential');
+    expect(s.body.store.template).toBe('rvios');
   });
 
   it('الأعمال: القياسي مجانًا بلا شراء، والتوقيع بخصم ٤٠٪، وسعر الإدارة يعلو الافتراضي', async () => {
@@ -232,7 +232,7 @@ describe('قوالب منصة المتاجر', () => {
       // لا شيء يتفعّل قبل تأكيد الفريق
       const before = await request(http).get(`/api/v1/shop/storefront/${oSlug}/catalogue`).expect(200);
       expect(before.body.store.planTier).toBe('free');
-      expect(before.body.store.template).toBe('essential');
+      expect(before.body.store.template).toBe('rvios');
 
       for (const id of [plan.body.id, tpl.body.id]) {
         await request(http).patch(`/api/v1/platform/invoices/${id}/review`).set(auth(staff.token)).send({ decision: 'paid' }).expect(200);

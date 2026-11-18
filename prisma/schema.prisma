@@ -898,7 +898,7 @@ model ShopStore {
   theme     String @default("signature")
   layout    String @default("signature")
   /// قالب الواجهة في منصة المتاجر الجديدة (rvios-next) — معرّف من `STORE_TEMPLATES`
-  template       String   @default("essential")
+  template       String   @default("rvios")
   /// القوالب المدفوعة التي اشتراها المتجر (دفعة واحدة) — يبدّل بينها بلا دفع جديد
   ownedTemplates String[] @default([]) @map("owned_templates")
   /// نطاق خاص للباقات المدفوعة (mystore.com) — بلا بروتوكول، بأحرف صغيرة. يحلّه

@@ -14,9 +14,11 @@ import { ShopPlan } from '../shop-billing/shop-billing.constants';
  */
 export type TemplateTier = 'free' | 'standard' | 'signature';
 
-export const FREE_TEMPLATE = 'essential';
+/** القالب الافتراضي لكل متجر جديد ولكل متجر يفقد حق قالبه: «ريفيوس برو» المتكامل */
+export const FREE_TEMPLATE = 'rvios';
 
 export const STORE_TEMPLATES: Record<string, { tier: TemplateTier; price: number }> = {
+  rvios: { tier: 'free', price: 0 },
   essential: { tier: 'free', price: 0 },
   // التوقيع
   dahab: { tier: 'signature', price: 55 },
