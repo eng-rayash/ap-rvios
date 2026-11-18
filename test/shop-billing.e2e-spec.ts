@@ -441,10 +441,13 @@ describe('فوترة منصة المتاجر', () => {
   });
 
   describe('التسعير العام والوراثة وحذف الاشتراك', () => {
-    it('الأسعار المعلنة تُقرأ بلا جلسة، ووسائل الدفع لا', async () => {
+    it('الأسعار العامة بلا أسعار اشتراكات ولا وسائل دفع — الباقات داخل اللوحة', async () => {
       const pub = await request(http).get('/api/v1/shop/public/pricing').expect(200);
-      expect(pub.body.prices).toBeDefined();
+      expect(pub.body.prices).toBeUndefined();
+      expect(pub.body.plans).toBeUndefined();
       expect(pub.body.methods).toBeUndefined();
+      const inside = await request(http).get('/api/v1/shop/billing/pricing').set(auth(a.token)).expect(200);
+      expect(inside.body.plans.currency).toBe('YER');
     });
 
     it('متجر إضافي يرث باقة الحساب من متجر آخر في الشركة نفسها فقط', async () => {
