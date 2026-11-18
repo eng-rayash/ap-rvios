@@ -30,10 +30,14 @@ import { AskQuestionDto } from '../questions/questions.dto';
 import { RequestReturnDto } from '../returns/returns.dto';
 import { SaveCartDto, ShopCartsService } from '../carts/carts';
 import { CustomerAuth } from '../customers/customer-accounts';
+import { isWholesale, stripPrices } from './wholesale';
 import { ShopReturnsService } from '../returns/returns.service';
 import { ShopQuestionsService } from '../questions/questions.service';
 import { CouponsService } from '../coupons/coupons.service';
 import { hasFeature } from '../../shop-billing/plans';
+
+/** وضع الجملة فعّال: الميزة في الباقة والتاجر شغّله */
+const wholesaleOn = (store: { wholesale: boolean }, plan: string) => store.wholesale && hasFeature(plan, 'wholesale');
 
 /**
  * واجهة المتجر العامة — كل المسارات `@Public()` عمدًا: الزائر القادم من رابط
@@ -88,20 +92,23 @@ export class ShopPublicController {
   }
 
   @Get(':slug')
-  storefront(@Param('slug') slug: string, @Query() q: Record<string, string>) {
-    return this.publicShop.storefront(slug, q);
+  async storefront(@Param('slug') slug: string, @Query() q: Record<string, string>) {
+    const r = await this.publicShop.storefront(slug, q);
+    return isWholesale(r) ? stripPrices(r) : r;
   }
 
   /** الكتالوج كاملًا لصفحة المتجر المصيَّرة على الخادم. */
   @Get(':slug/catalogue')
-  catalogue(@Param('slug') slug: string) {
-    return this.publicShop.catalogue(slug);
+  async catalogue(@Param('slug') slug: string) {
+    const r = await this.publicShop.catalogue(slug);
+    return isWholesale(r) ? stripPrices(r) : r;
   }
 
   @Get(':slug/products')
   async products(@Param('slug') slug: string, @Query() q: Record<string, string>) {
     const { store, plan } = await this.publicShop.live(slug);
-    return this.publicShop.products(store, plan, q);
+    const r = await this.publicShop.products(store, plan, q);
+    return wholesaleOn(store, plan) ? stripPrices(r) : r;
   }
 
   /** تقييمات منتج المنشورة — مع المتوسّط والعدد */
@@ -134,8 +141,10 @@ export class ShopPublicController {
   }
 
   @Get(':slug/products/:id')
-  product(@Param('slug') slug: string, @Param('id', ParseUUIDPipe) id: string) {
-    return this.publicShop.product(slug, id);
+  async product(@Param('slug') slug: string, @Param('id', ParseUUIDPipe) id: string) {
+    const r = await this.publicShop.product(slug, id);
+    const { store, plan } = await this.publicShop.live(slug);
+    return wholesaleOn(store, plan) ? stripPrices(r) : r;
   }
 
   /** زيارة فريدة يوميًا — بصمة مجزّأة بلا بيانات تعريفية (§١٠). */
@@ -184,7 +193,11 @@ export class ShopPublicController {
       dto.phone = c.phone;
       spend = { customerId: c.id };
     }
-    const r = await this.orders.place(store, dto, spend);
+    // وضع الجملة: الطلب «طلب تسعير» بلا دفع إلكتروني ولا مبالغ في الرد
+    const quote = wholesaleOn(store, plan);
+    if (quote) { dto.payMethod = 'cod'; dto.walletUsed = 0; dto.pointsUsed = 0; dto.coupon = undefined; }
+    const r = await this.orders.place(store, dto, spend, quote ? 'quote' : undefined);
+    if (quote) return { ok: true, quote: true, ref: r.order.ref, wa: r.wa, message: `وصل طلب التسعير برقم ${r.order.ref} — يتواصل معك المتجر بالأسعار` };
     return {
       ok: true,
       ref: r.order.ref,
@@ -247,7 +260,9 @@ export class ShopPublicController {
     // أيّ الأسطر قُيّم — صاحب الطلب يقيّم ما بقي بعد اكتماله
     const done = await this.reviews.reviewedByRef(store.id, t.ref);
     const { id: orderId, ...pub } = t;
-    return { ...pub, items: t.items.map((i) => ({ ...i, reviewed: done.has(i.id) })), return: await this.returns.forTracking(store.id, orderId) };
+    const out = { ...pub, items: t.items.map((i) => ({ ...i, reviewed: done.has(i.id) })), return: await this.returns.forTracking(store.id, orderId) };
+    // طلب تسعير: لا مبالغ للعميل — المتجر يتواصل معه بالسعر
+    return t.source === 'quote' ? stripPrices(out) : out;
   }
 
   /** طلب استرجاع لطلب مكتمل — الإثبات رقم الطلب، بحدّ معدّل */

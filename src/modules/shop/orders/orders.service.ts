@@ -97,10 +97,10 @@ export class OrdersService {
    * كلاهما. الحجز بخصم شرطي ذرّي (`qty >= المطلوب`) داخل معاملة واحدة —
    * لا سباق ولا حاجة لقفل صفوف.
    */
-  async place(store: ShopStore, dto: PlaceOrderDto, spend?: { customerId: string }) {
+  async place(store: ShopStore, dto: PlaceOrderDto, spend?: { customerId: string }, source?: 'quote') {
     for (let attempt = 0; attempt < 4; attempt++) {
       try {
-        const placed = await this.placeOnce(store, dto, undefined, spend);
+        const placed = await this.placeOnce(store, dto, undefined, spend, source);
         // بعد التزام المعاملة: لا حدث لطلب قد يُلغى بتراجعها
         this.notify(store, 'order.created', placed.order);
         void this.merchant.newOrder(store, placed.order);
@@ -154,6 +154,8 @@ export class OrdersService {
     manual?: { deliveryFee?: number; extraDiscount: number; paid: boolean; confirm: boolean; pointsUsed?: number },
     /** العميل المسجّل الدخول — وحده يصرف من محفظته ومكافآته */
     spend?: { customerId: string },
+    /** quote = طلب تسعير من متجر جملة */
+    source?: 'quote',
   ) {
     if (!spend && !manual && ((dto.walletUsed ?? 0) > 0 || (dto.pointsUsed ?? 0) > 0)) {
       throw new BadRequestException('سجّل الدخول لتدفع من محفظتك أو مكافآتك');
@@ -317,7 +319,7 @@ export class OrdersService {
           discount,
           total,
           status: manual?.confirm ? OrderStatus.Confirmed : OrderStatus.Wait,
-          source: manual ? 'manual' : 'store',
+          source: manual ? 'manual' : source ?? 'store',
           items: {
             create: priced.map((l) => ({
               companyId,
@@ -648,6 +650,7 @@ export class OrdersService {
       total: o.total,
       cancelReason: o.status === OrderStatus.Off ? o.cancelReason : '',
       walletPaid: o.walletPaid,
+      source: o.source,
       // الشحن بعد خروجه فقط — الشركة والرقم ورابط التتبّع
       shipping: [OrderStatus.Shipped, OrderStatus.Done].includes(o.status) && (o.carrierName || o.trackingNo)
         ? { carrier: o.carrierName, trackingNo: o.trackingNo, url: o.trackUrl }
