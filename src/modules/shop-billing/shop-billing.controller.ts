@@ -161,6 +161,7 @@ export class ShopBillingController {
       plan: dto.plan,
       months: dto.months,
       template: dto.template,
+      amount: dto.amount,
     });
   }
 

@@ -66,6 +66,8 @@ export class ShopInvoicesService {
       plan?: string;
       months?: number;
       template?: string;
+      /** مبلغ شحن المحفظة (kind=5) */
+      amount?: number;
     },
   ) {
     const db = this.prisma.forTenant(ctx.companyId);
@@ -77,7 +79,14 @@ export class ShopInvoicesService {
     let plan: ShopPlan | null = null;
     let item: string | null = null;
 
-    if (kind === InvoiceKind.Template) {
+    if (kind === InvoiceKind.WalletTopup) {
+      const v = Math.round(Number(input.amount));
+      if (!Number.isFinite(v) || v < 1000 || v > 10_000_000) {
+        throw new BadRequestException('مبلغ الشحن بين ١٬٠٠٠ و١٠٬٠٠٠٬٠٠٠');
+      }
+      amount = v;
+      currency = plansConfig().currency;
+    } else if (kind === InvoiceKind.Template) {
       // القالب يُشترى لمتجر قائم في هذه الشركة — الملكية تُسجَّل عليه
       const store = await db.shopStore.findFirst({ where: { id: storeRef }, select: { id: true, ownedTemplates: true } });
       if (!store) throw new NotFoundException('المتجر غير موجود');
@@ -178,7 +187,7 @@ export class ShopInvoicesService {
     });
 
     if (open) {
-      const same = (open.plan ?? null) === plan && (open.months ?? 1) === months;
+      const same = (open.plan ?? null) === plan && (open.months ?? 1) === months && (kind !== InvoiceKind.WalletTopup || Number(open.amount) === amount);
       if (same) return open;
 
       if (open.status === InvoiceStatus.UnderReview) {

@@ -8,6 +8,7 @@ import {
   InvoiceStatus,
 } from '../shop-billing/shop-billing.constants';
 import { StoreSubscriptionsService } from '../shop-billing/store-subscriptions.service';
+import { MerchantWalletService } from '../shop-billing/merchant-wallet';
 import { grantTemplate, revokeTemplate } from '../shop/store-templates';
 
 /**
@@ -22,6 +23,7 @@ export class PlatformInvoicesService {
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly subs: StoreSubscriptionsService,
+    private readonly wallet: MerchantWalletService,
   ) {}
 
   async findAll(status?: number) {
@@ -126,6 +128,13 @@ export class PlatformInvoicesService {
       if (inv.kind === InvoiceKind.Template && inv.storeRef && inv.item) {
         await grantTemplate(this.prisma.forTenant(inv.companyId), inv.storeRef, inv.item);
       }
+    }
+    // شحن المحفظة يُضاف بعد التأكيد وحده (لا تفعيل مسبق له)، ومكافأة الإحالة عند أول اشتراك مؤكَّد
+    if (paid && inv.status !== InvoiceStatus.Paid) {
+      if (inv.kind === InvoiceKind.WalletTopup) {
+        await this.wallet.move(inv.companyId, Number(inv.amount), 'topup', { note: `شحن — ${inv.invoiceNumber}`, invoiceId: inv.id, by: ctx.userId });
+      }
+      await this.wallet.rewardReferrer(inv.companyId, inv);
     }
     if (!paid && wasUnderReview) {
       if (inv.kind === InvoiceKind.Subscription && inv.storeRef) {

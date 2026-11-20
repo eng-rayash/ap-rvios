@@ -54,6 +54,12 @@ export interface PlansConfig {
   /** فترات الاشتراك المعروضة بالأشهر */
   periods: number[];
   plans: Record<PlanCode, PlanConfig>;
+  /** أيام الفترة التجريبية المجانية (0 = بلا تجربة) — مرة لكل حساب */
+  trialDays: number;
+  /** الباقة التي تُجرَّب */
+  trialPlan: PlanCode;
+  /** مكافأة الإحالة: نسبة من أول اشتراك يدفعه التاجر المدعوّ، تُضاف لمحفظة من دعاه */
+  referralPercent: number;
 }
 
 const on = (...keys: FeatureKey[]) => Object.fromEntries(FEATURE_KEYS.map((k) => [k, keys.includes(k)])) as Record<FeatureKey, boolean>;
@@ -63,6 +69,9 @@ const PRO: FeatureKey[] = [...GROWTH, 'loyalty', 'customerAccounts', 'broadcasts
 export const DEFAULT_PLANS: PlansConfig = {
   currency: 'YER',
   periods: [3, 6, 12],
+  trialDays: 14,
+  trialPlan: 'pro',
+  referralPercent: 10,
   plans: {
     basic: {
       name: 'المجانية', tagline: 'جرّب البيع أونلاين بلا تكلفة', highlight: false, prices: {},
@@ -134,7 +143,16 @@ export function normalizePlans(raw: unknown): PlansConfig {
       features: Object.fromEntries(FEATURE_KEYS.map((k) => [k, typeof p.features?.[k] === 'boolean' ? p.features[k] : d.features[k]])) as Record<FeatureKey, boolean>,
     };
   }
-  return { currency: typeof r.currency === 'string' && /^[A-Z]{3}$/.test(r.currency) ? r.currency : DEFAULT_PLANS.currency, periods, plans };
+  const int = (v: unknown, d: number, max: number) => (Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= max ? Number(v) : d);
+  const trialPlan = PLAN_CODES.includes(r.trialPlan as PlanCode) && r.trialPlan !== 'basic' ? (r.trialPlan as PlanCode) : DEFAULT_PLANS.trialPlan;
+  return {
+    currency: typeof r.currency === 'string' && /^[A-Z]{3}$/.test(r.currency) ? r.currency : DEFAULT_PLANS.currency,
+    periods,
+    plans,
+    trialDays: int(r.trialDays, DEFAULT_PLANS.trialDays, 60),
+    trialPlan,
+    referralPercent: int(r.referralPercent, DEFAULT_PLANS.referralPercent, 50),
+  };
 }
 
 @Injectable()

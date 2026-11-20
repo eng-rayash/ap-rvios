@@ -25,10 +25,17 @@ export class CreateShopInvoiceDto {
   @Length(1, 64)
   storeRef!: string;
 
-  /** 0=اشتراك · 1=بناء متجر · 2=دومين · 3=متجر إضافي · 4=قالب */
+  /** 0=اشتراك · 1=بناء متجر · 2=دومين · 3=متجر إضافي · 4=قالب · 5=شحن المحفظة */
   @IsInt()
-  @IsIn([0, 1, 2, 3, 4])
+  @IsIn([0, 1, 2, 3, 4, 5])
   kind!: number;
+
+  /** مبلغ شحن المحفظة (kind=5) */
+  @IsOptional()
+  @IsInt()
+  @Min(1000)
+  @Max(10_000_000)
+  amount?: number;
 
   /** معرّف القالب لفواتير القوالب (kind=4) */
   @IsOptional()

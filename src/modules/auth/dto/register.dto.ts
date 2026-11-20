@@ -1,4 +1,5 @@
-import { IsEmail, IsString, Length, MinLength } from 'class-validator';
+import {
+  IsOptional, IsEmail, IsString, Length, MinLength } from 'class-validator';
 
 /**
  * تسجيل حساب وشركة معًا.
@@ -28,4 +29,10 @@ export class RegisterDto {
   @IsString()
   @Length(2, 120, { message: 'اسم الشركة بين حرفين و١٢٠' })
   companyName!: string;
+
+  /** رمز إحالة تاجر دعاه (?ref=) — رمز مجهول يُتجاهل */
+  @IsOptional()
+  @IsString()
+  @Length(0, 20)
+  ref?: string;
 }

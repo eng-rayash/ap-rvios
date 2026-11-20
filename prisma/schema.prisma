@@ -43,6 +43,16 @@ model Organization {
   subscriptionStatus Int       @default(0) @map("subscription_status")
   trialEndsAt        DateTime? @map("trial_ends_at")
 
+  /// الفترة التجريبية لمنصة المتاجر — مرة واحدة لكل حساب، على أحد متاجره
+  storeTrialUsedAt   DateTime? @map("store_trial_used_at")
+  /// رصيد التاجر لدى RVIOS: يُشحن بتحويل، ويدفع منه اشتراكاته وقوالبه، وتصبّ فيه مكافآت الإحالة
+  walletBalance      Decimal   @default(0) @db.Decimal(14, 2) @map("wallet_balance")
+  /// رمز إحالة التاجر — رابط التسجيل ?ref=<الرمز>
+  referralCode       String?   @unique @map("referral_code")
+  /// من دعا هذا الحساب — مكافأته عند أول اشتراك مدفوع
+  referredById       String?   @map("referred_by_id")
+  referralRewardedAt DateTime? @map("referral_rewarded_at")
+
   country  String?
   currency String? @default("SAR")
   industry String?
@@ -62,6 +72,7 @@ model Organization {
   auditLogs          AuditLog[]
   platformInvoices   PlatformInvoice[]
   storeSubscriptions StoreSubscription[]
+  merchantWalletTxs  MerchantWalletTx[]
   shopStores         ShopStore[]
   workProjects       WorkProject[]
   workTasks          WorkTask[]
@@ -452,6 +463,8 @@ model StoreSubscription {
   status Int @default(0)
 
   currentPeriodEnd DateTime? @map("current_period_end")
+  /// فترة تجريبية مجانية (لا فاتورة): تنتهي إلى المجانية مباشرة بلا مهلة
+  trial            Boolean   @default(false)
   /// آخر مرحلة تذكير أُرسلت: d7 | d1 | grace | expired
   notifiedStage    String?   @map("notified_stage")
   notifiedAt       DateTime? @map("notified_at")
@@ -464,6 +477,26 @@ model StoreSubscription {
   @@unique([companyId, storeRef])
   @@index([status, currentPeriodEnd])
   @@map("store_subscriptions")
+}
+
+/// حركة في محفظة التاجر لدى RVIOS — دفتر لا يُعدَّل: الرصيد مجموعه.
+model MerchantWalletTx {
+  id           String       @id @default(uuid())
+  companyId    String       @map("company_id")
+  organization Organization @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// موجب: شحن أو مكافأة أو استرداد · سالب: دفع
+  amount       Decimal      @db.Decimal(14, 2)
+  /// topup | pay | referral | refund | adjust
+  kind         String
+  invoiceId    String?      @map("invoice_id")
+  note         String?
+  /// الرصيد بعد الحركة
+  balance      Decimal      @db.Decimal(14, 2)
+  createdBy    String?      @map("created_by")
+  createdAt    DateTime     @default(now()) @map("created_at")
+
+  @@index([companyId, createdAt])
+  @@map("merchant_wallet_txs")
 }
 
 /// إعدادات المنصة العالمية — أسعار الباقات وتعليمات التحويل.

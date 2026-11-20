@@ -22,6 +22,8 @@ export interface SubscriptionView {
   daysLeft: number | null;
   effectivePlan: string;
   graceDays: number;
+  /** فترة تجريبية مجانية */
+  trial: boolean;
 }
 
 /**
@@ -129,6 +131,7 @@ export class StoreSubscriptionsService {
       daysLeft: end ? Math.ceil((end.getTime() - Date.now()) / MS_DAY) : null,
       effectivePlan: PLAN_CODE[this.effectivePlan(sub)] ?? 'basic',
       graceDays: GRACE_DAYS,
+      trial: sub.trial,
     };
   }
 
@@ -153,6 +156,27 @@ export class StoreSubscriptionsService {
         plan,
         status: SubStatus.Active,
         currentPeriodEnd: base,
+        trial: false,
+        notifiedStage: null,
+        notifiedAt: null,
+        version: { increment: 1 },
+      },
+    });
+  }
+
+  /**
+   * الفترة التجريبية: الباقة المختارة أيامًا معدودة بلا فاتورة. لا تُمدَّد فوق
+   * اشتراك قائم (من يدفع لا يحتاج تجربة)، وتنتهي إلى المجانية مباشرة.
+   */
+  async startTrial(companyId: string, storeRef: string, plan: ShopPlan, days: number): Promise<StoreSubscription> {
+    const sub = await this.ensure(companyId, storeRef);
+    return this.prisma.storeSubscription.update({
+      where: { id: sub.id },
+      data: {
+        plan,
+        status: SubStatus.Active,
+        currentPeriodEnd: new Date(Date.now() + days * MS_DAY),
+        trial: true,
         notifiedStage: null,
         notifiedAt: null,
         version: { increment: 1 },
@@ -254,9 +278,10 @@ export class StoreSubscriptionsService {
       },
     });
     for (const sub of due) {
+      // التجربة لا مهلة بعدها: لم يدفع أحد شيئًا ينتظر تجديده
       await this.prisma.storeSubscription.update({
         where: { id: sub.id },
-        data: { status: SubStatus.Grace, version: { increment: 1 } },
+        data: { status: sub.trial ? SubStatus.Expired : SubStatus.Grace, version: { increment: 1 } },
       });
     }
 

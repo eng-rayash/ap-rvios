@@ -44,8 +44,9 @@ export class AuthService {
    * التسجيل من الواجهات: مع رموز البريد لا جلسة قبل تأكيده. الحساب يبقى إن تعطّل الإرسال —
    * إعادة الإرسال تكمله، وإلا لرفض التسجيلُ التالي بريدًا «مسجَّلًا» لا يستطيع صاحبه دخوله.
    */
-  async register(input: { email: string; password: string; displayName: string; companyName: string }) {
+  async register(input: { email: string; password: string; displayName: string; companyName: string; ref?: string }) {
     const r = await this.registerWithCompany(input);
+    if (input.ref) await this.attachReferrer(r.company.id, input.ref).catch(() => undefined);
     if (!this.codes.enabled) return r;
     const sent = await this.codes.issue(r.user, 'verify');
     return { verificationRequired: true as const, email: r.user.email, sent };
@@ -377,6 +378,15 @@ export class AuthService {
    * يجبر العميل على توليد نظيرَين محليًا — فيعرض للمستخدم كودًا لا
    * يعرفه الخادم، ولا ينضمّ به أحد.
    */
+  /** يربط الحساب الجديد بتاجر دعاه (رمز RVxxxxxx) — رمز مجهول أو دعوة النفس تُتجاهل */
+  private async attachReferrer(companyId: string, code: string) {
+    const c = code.trim().toUpperCase();
+    if (!/^RV[A-Z0-9]{6}$/.test(c)) return;
+    const ref = await this.prisma.organization.findUnique({ where: { referralCode: c }, select: { id: true } });
+    if (!ref || ref.id === companyId) return;
+    await this.prisma.organization.updateMany({ where: { id: companyId, referredById: null }, data: { referredById: ref.id } });
+  }
+
   private publicCompany(o: {
     id: string;
     name: string;

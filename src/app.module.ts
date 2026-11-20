@@ -83,6 +83,7 @@ import { PlatformSupportController, SupportController, SupportService } from './
 import { PlanFeatureGuard } from './modules/shop/plan-feature.guard';
 import { PlansService } from './modules/shop-billing/plans';
 import { PlansController, PlatformPlansController } from './modules/shop-billing/plans.controller';
+import { MerchantWalletController, MerchantWalletService, PlatformWalletController } from './modules/shop-billing/merchant-wallet';
 import { CustomerAccountController, CustomerAuth, CustomerMessenger, CustomerNotices, CustomerWallet, CustomerWalletController } from './modules/shop/customers/customer-accounts';
 import { ShopReturnsService } from './modules/shop/returns/returns.service';
 import { OrdersService } from './modules/shop/orders/orders.service';
@@ -201,6 +202,8 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     SupportController,
     PlansController,
     PlatformPlansController,
+    MerchantWalletController,
+    PlatformWalletController,
     PlatformSupportController,
     CustomerAccountController,
     CustomerWalletController,
@@ -261,6 +264,7 @@ import { SettingsService } from './modules/cms/settings/settings.service';
     PlatformInvoicesService,
     PlatformSettingsService,
     StoreSubscriptionsService,
+    MerchantWalletService,
     ShopInvoicesService,
     ShopStoreAccessService,
     StoresService,
