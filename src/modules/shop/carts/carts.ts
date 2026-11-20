@@ -8,7 +8,7 @@ import { Tenant } from '../../../common/tenant/tenant.guard';
 import { TenantContext } from '../../../common/tenant/tenant-context';
 import { variantPrice } from '../catalog/catalog.service';
 import { ShopStoreAccessService } from '../shop-store-access.service';
-import { symbolOf, toE164 } from '../shop.constants';
+import { storePublicUrl, symbolOf, toE164 } from '../shop.constants';
 import { ShopSection } from '../../../common/tenant/shop-sections';
 import { PlanFeature } from '../plan-feature.guard';
 
@@ -96,7 +96,7 @@ export class ShopCartsService {
   /** رسالة التذكير من رقم التاجر إلى العميل — رابط واتساب جاهز */
   private reminder(store: ShopStore, phone: string, name: string, items: { name: string; qty: number }[], subtotal: number, cur: string) {
     const lines = items.slice(0, 6).map((i) => `• ${i.name} × ${i.qty}`).join('\n');
-    const base = store.customDomain ? `https://${store.customDomain}` : `https://${store.slug}.rvios.store`;
+    const base = storePublicUrl(store);
     const text = [
       `مرحبًا${name ? ` ${name}` : ''} 👋`,
       `لاحظنا أنك تركت سلتك في ${store.name}:`,

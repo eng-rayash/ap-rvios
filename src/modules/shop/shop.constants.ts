@@ -216,4 +216,13 @@ export const RESERVED_SLUGS = new Set([
   'favicon.ico', 'robots.txt', 'sitemap.xml', 'manifest.json', 'sw.js',
   'rvios', 'rviosstore', 'index', 'home', 'search', 'cart', 'order', 'orders',
   'account', 'profile', 'settings', 'billing', 'new', 'edit', 'delete', 'test',
+  // نطاقات فرعية لخدمات RVIOS: المتجر صار <slug>.rvios.com، فلا يأخذ تاجر اسم خدمة
+  'azm', 'webmail', 'email', 'smtp', 'mx', 'media', 'files', 'dev', 'staging', 'beta',
+  'pay', 'ai', 'auth', 'panel', 'm', 'web', 'news', 'ns1', 'ns2',
 ]);
+
+/** نطاق روابط المتاجر: <slug>.rvios.com */
+export const STORE_DOMAIN = (process.env.STORE_DOMAIN || 'rvios.com').toLowerCase();
+/** الرابط العام لمتجر: نطاقه الخاص إن وُجد، وإلا https://<slug>.rvios.com */
+export const storePublicUrl = (s: { slug: string; customDomain?: string | null }) =>
+  s.customDomain ? `https://${s.customDomain}` : `https://${s.slug}.${STORE_DOMAIN}`;

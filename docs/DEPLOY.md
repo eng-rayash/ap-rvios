@@ -6,7 +6,7 @@
 |---|---|---|---|
 | الباكند الموحّد (NestJS + Prisma) | `F:\RVIOS_APP\api` | `api.rvios.com` | أي مضيف Docker (Render · Railway · Fly · VPS) |
 | AzmSmart (لوحة التاجر والمنصة) | `F:\مشروع نظام عزم سمارت\AzmSmart-OS` | `azm.rvios.com` | Vercel |
-| RVIOS StoreOS (إنشاء المتاجر وواجهاتها) | `F:\rvios-next` | `store.rvios.com` · `rvios.store` · `*.rvios.store` | Vercel |
+| RVIOS StoreOS (إنشاء المتاجر وواجهاتها) | `F:\rvios-next` | `store.rvios.com` · `*.rvios.com` (المتاجر: madad.rvios.com) · `rvios.store` و`*.rvios.store` (القديم، يُحوَّل) | Vercel |
 | الموقع الرئيسي | `F:\rvios-web` | `rvios.com` · `www.rvios.com` | Vercel |
 | قاعدة البيانات | — | — | PostgreSQL مُدار (Neon · Supabase · RDS) |
 | الصور | — | `cdn.rvios.com` (اختياري) | Cloudflare R2، حاوية `rvios-stores` |
@@ -65,7 +65,7 @@ docker build -t azm-api .
 | `GOOGLE_CLIENT_ID` | | معرّف OAuth لتطبيق الويب في Google (ليس سرًّا) — يفعّل `POST /auth/google`، ويساويه `NEXT_PUBLIC_GOOGLE_CLIENT_ID` في AzmSmart |
 | `JWT_EXPIRES_IN` | | `7d` |
 | `PUBLIC_API_URL` | ✅ | `https://api.rvios.com` |
-| `CORS_ORIGINS` | ✅ | `https://azm.rvios.com,https://store.rvios.com,https://rvios.store,https://*.rvios.store,https://rvios.com,https://www.rvios.com` |
+| `CORS_ORIGINS` | ✅ | `https://azm.rvios.com,https://store.rvios.com,https://*.rvios.com,https://rvios.store,https://*.rvios.store,https://rvios.com,https://www.rvios.com` |
 | `VISIT_SALT` | ✅ | نص عشوائي ثابت (لا تغيّره بعد الإطلاق وإلا تضاعفت أعداد الزوّار) |
 | `CF_ACCOUNT_ID` · `CF_ACCESS_KEY_ID` · `CF_SECRET_ACCESS_KEY` · `CF_BUCKET_NAME` · `CF_PUBLIC_URL` | ✅ | مفاتيح R2 — انظر §٦ |
 | `TRUST_PROXY` | | `1` افتراضيًا: عدد الوسطاء أمام الخادم (موازن المضيف). خلف Cloudflare + موازن: `2` |

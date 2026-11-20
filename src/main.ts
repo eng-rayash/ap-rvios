@@ -35,7 +35,7 @@ async function bootstrap() {
   // مساعد الزوّار عام بلا جلسة لكنه يُكلِّف: يُسمح به لمواقع RVIOS وحدها لا لأي موقع يضمّنه
   const aiPublic = originMatcher(
     process.env.AI_PUBLIC_ORIGINS ??
-      'https://www.rvios.com,https://rvios.com,https://store.rvios.com,https://rvios.store,https://www.rvios.store,http://localhost:3020,http://localhost:3030',
+      'https://www.rvios.com,https://rvios.com,https://store.rvios.com,https://*.rvios.com,https://rvios.store,https://www.rvios.store,http://localhost:3020,http://localhost:3030',
   );
   app.enableCors((req: { url?: string; headers: { origin?: string } }, cb) => {
     const origin = req.headers.origin;
